@@ -1,0 +1,352 @@
+// ─── ESTADO DE PAGINACIÓN ─────────────────────────────────────
+const paginacion = {
+  pagina: 1,
+  porPagina: 10,
+  total: 0,
+  totalPaginas: 0
+};
+
+// ─── NAVEGACIÓN ───────────────────────────────────────────────
+function navigate(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+
+  const page = document.getElementById(pageId);
+  if (page) page.classList.add('active');
+
+  const link = document.querySelector(`.nav a[data-page="${pageId}"]`);
+  if (link) link.classList.add('active');
+
+  if (pageId === 'page-lista') {
+    paginacion.pagina = 1;
+    cargarLista();
+  }
+}
+
+// ─── UTILIDADES ───────────────────────────────────────────────
+function formatFecha(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    + ' ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function badgeEstado(estado) {
+  const clases = {
+    'creado': 'badge-creado',
+    'en tránsito': 'badge-transito',
+    'en sucursal': 'badge-sucursal',
+    'entregado': 'badge-entregado'
+  };
+  return `<span class="badge ${clases[estado] || ''}">${estado}</span>`;
+}
+
+function showAlert(id, msg, tipo = 'success') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = `alert alert-${tipo} show`;
+  el.textContent = msg;
+  setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+// ─── VALIDACIONES FRONTEND ────────────────────────────────────
+function validarCampo(valor, nombre, minLen = 2, maxLen = 100) {
+  if (!valor || valor.trim().length === 0) return `El campo ${nombre} es obligatorio.`;
+  if (valor.trim().length < minLen) return `El campo ${nombre} debe tener al menos ${minLen} caracteres.`;
+  if (valor.length > maxLen) return `El campo ${nombre} no puede superar los ${maxLen} caracteres.`;
+  return null;
+}
+
+// ─── CREAR ENVÍO ──────────────────────────────────────────────
+async function crearEnvio(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btn-crear');
+
+  const remitente    = document.getElementById('remitente').value.trim();
+  const destinatario = document.getElementById('destinatario').value.trim();
+  const producto     = document.getElementById('producto').value.trim();
+
+  const errRemitente    = validarCampo(remitente, 'remitente');
+  const errDestinatario = validarCampo(destinatario, 'destinatario');
+  const errProducto     = validarCampo(producto, 'producto', 2, 200);
+
+  if (errRemitente || errDestinatario || errProducto) {
+    showAlert('alert-crear', errRemitente || errDestinatario || errProducto, 'error');
+    return;
+  }
+
+  btn.disabled = true;
+
+  try {
+    const res = await fetchAuth('/api/envios', {
+      method: 'POST',
+      body: JSON.stringify({ remitente, destinatario, producto })
+    });
+    const data = await res.json();
+
+    if (res.status === 401) { window.location.href = '/login.html'; return; }
+    if (!res.ok) throw new Error(data.error);
+
+    showAlert('alert-crear', `✅ Envío creado. Tracking ID: ${data.trackingId}`, 'success');
+    document.getElementById('form-crear').reset();
+  } catch (err) {
+    showAlert('alert-crear', `❌ ${err.message}`, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ─── LISTAR ENVÍOS ────────────────────────────────────────────
+async function cargarLista() {
+  const tbody = document.getElementById('tbody-lista');
+  tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:24px">Cargando...</td></tr>`;
+
+  try {
+    const params = new URLSearchParams({
+      pagina: paginacion.pagina,
+      porPagina: paginacion.porPagina
+    });
+
+    const res = await fetchAuth(`/api/envios?${params}`);
+    const data = await res.json();
+
+    if (res.status === 401) { window.location.href = '/login.html'; return; }
+    if (!res.ok) throw new Error(data.error);
+
+    const { envios, paginacion: info } = data;
+
+    paginacion.total = info.total;
+    paginacion.totalPaginas = info.totalPaginas;
+
+    if (!envios.length) {
+      tbody.innerHTML = `<tr><td colspan="5"><div class="empty"><div class="empty-icon">📦</div><p>No hay envíos todavía.</p></div></td></tr>`;
+      renderPaginacion();
+      return;
+    }
+
+    tbody.innerHTML = envios.map(e => `
+      <tr>
+        <td class="tracking-cell">${e.trackingId}</td>
+        <td>${e.remitente}</td>
+        <td>${e.destinatario}</td>
+        <td>${badgeEstado(e.estado)}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="verDetalle('${e.trackingId}')">Ver</button>
+        </td>
+      </tr>
+    `).join('');
+
+    renderPaginacion();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--red)">❌ ${err.message}</td></tr>`;
+  }
+}
+
+// ─── PAGINACIÓN ───────────────────────────────────────────────
+function renderPaginacion() {
+  const container = document.getElementById('paginacion');
+  if (!container) return;
+
+  const { pagina, totalPaginas, total, porPagina } = paginacion;
+  const desde = Math.min((pagina - 1) * porPagina + 1, total);
+  const hasta  = Math.min(pagina * porPagina, total);
+
+  if (totalPaginas <= 1) {
+    container.innerHTML = total > 0
+      ? `<span class="pag-info">${total} envío${total !== 1 ? 's' : ''}</span>`
+      : '';
+    return;
+  }
+
+  container.innerHTML = `
+    <span class="pag-info">${desde}–${hasta} de ${total}</span>
+    <div class="pag-controls">
+      <button class="btn btn-secondary btn-sm" onclick="irPagina(1)" ${pagina === 1 ? 'disabled' : ''}>«</button>
+      <button class="btn btn-secondary btn-sm" onclick="irPagina(${pagina - 1})" ${pagina === 1 ? 'disabled' : ''}>‹</button>
+      <span class="pag-current">${pagina} / ${totalPaginas}</span>
+      <button class="btn btn-secondary btn-sm" onclick="irPagina(${pagina + 1})" ${pagina === totalPaginas ? 'disabled' : ''}>›</button>
+      <button class="btn btn-secondary btn-sm" onclick="irPagina(${totalPaginas})" ${pagina === totalPaginas ? 'disabled' : ''}>»</button>
+    </div>
+  `;
+}
+
+function irPagina(n) {
+  paginacion.pagina = n;
+  cargarLista();
+}
+
+// ─── BUSCAR ENVÍO ─────────────────────────────────────────────
+async function buscarEnvio() {
+  const trackingId = document.getElementById('input-buscar').value.trim().toUpperCase();
+
+  if (!trackingId) {
+    document.getElementById('resultado-busqueda').innerHTML =
+      `<div class="alert alert-error show">❌ Ingresá un Tracking ID para buscar.</div>`;
+    return;
+  }
+
+  const resultDiv = document.getElementById('resultado-busqueda');
+  resultDiv.innerHTML = '<p style="color:var(--text-muted)">Buscando...</p>';
+
+  try {
+    const res = await fetchAuth(`/api/envios/${trackingId}`);
+    const data = await res.json();
+
+    if (res.status === 401) { window.location.href = '/login.html'; return; }
+    if (!res.ok) throw new Error(data.error);
+
+    resultDiv.innerHTML = `
+      <div class="card" style="margin-top:20px">
+        <div class="detail-grid">
+          <div class="detail-item">
+            <label>Tracking ID</label>
+            <div class="value mono">${data.trackingId}</div>
+          </div>
+          <div class="detail-item">
+            <label>Estado</label>
+            <div class="value">${badgeEstado(data.estado)}</div>
+          </div>
+          <div class="detail-item">
+            <label>Remitente</label>
+            <div class="value">${data.remitente}</div>
+          </div>
+          <div class="detail-item">
+            <label>Destinatario</label>
+            <div class="value">${data.destinatario}</div>
+          </div>
+          <div class="detail-item">
+            <label>Producto</label>
+            <div class="value">${data.producto}</div>
+          </div>
+          <div class="detail-item">
+            <label>Última actualización</label>
+            <div class="value">${formatFecha(data.fechaActualizacion)}</div>
+          </div>
+        </div>
+        <div style="margin-top:16px">
+          <button class="btn btn-secondary btn-sm" onclick="verDetalle('${data.trackingId}')">
+            Ver detalle completo →
+          </button>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    resultDiv.innerHTML = `<div class="alert alert-error show">❌ ${err.message}</div>`;
+  }
+}
+
+// ─── VER DETALLE ──────────────────────────────────────────────
+async function verDetalle(trackingId) {
+  navigate('page-detalle');
+
+  const container = document.getElementById('detalle-container');
+  container.innerHTML = '<p style="color:var(--text-muted)">Cargando...</p>';
+
+  try {
+    const res = await fetchAuth(`/api/envios/${trackingId}`);
+    const e = await res.json();
+
+    if (res.status === 401) { window.location.href = '/login.html'; return; }
+    if (!res.ok) throw new Error(e.error);
+
+    const ESTADOS = ['creado', 'en tránsito', 'en sucursal', 'entregado'];
+    const ICONOS  = ['📋', '🚚', '🏢', '✅'];
+    const idx = ESTADOS.indexOf(e.estado);
+    const puedeAvanzar = idx < ESTADOS.length - 1;
+
+    const stepsHtml = ESTADOS.map((s, i) => {
+      const cls = i < idx ? 'done' : i === idx ? 'current' : '';
+      return `<div class="step ${cls}">
+        <div class="step-dot">${i <= idx ? ICONOS[i] : ''}</div>
+        <span class="step-label">${s}</span>
+      </div>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="card">
+        <div class="detail-grid">
+          <div class="detail-item" style="grid-column:1/-1">
+            <label>Tracking ID</label>
+            <div class="value mono">${e.trackingId}</div>
+          </div>
+          <div class="detail-item">
+            <label>Remitente</label>
+            <div class="value">${e.remitente}</div>
+          </div>
+          <div class="detail-item">
+            <label>Destinatario</label>
+            <div class="value">${e.destinatario}</div>
+          </div>
+          <div class="detail-item">
+            <label>Producto</label>
+            <div class="value">${e.producto}</div>
+          </div>
+          <div class="detail-item">
+            <label>Estado actual</label>
+            <div class="value">${badgeEstado(e.estado)}</div>
+          </div>
+          <div class="detail-item">
+            <label>Fecha de creación</label>
+            <div class="value">${formatFecha(e.fechaCreacion)}</div>
+          </div>
+          <div class="detail-item">
+            <label>Última actualización</label>
+            <div class="value">${formatFecha(e.fechaActualizacion)}</div>
+          </div>
+        </div>
+
+        <div class="timeline">
+          <h3>Progreso del envío</h3>
+          <div class="timeline-steps">${stepsHtml}</div>
+        </div>
+
+        <div style="margin-top:24px; display:flex; gap:10px; align-items:center">
+          <div id="alert-detalle" class="alert"></div>
+          ${puedeAvanzar ? `
+            <button class="btn btn-primary" onclick="avanzarEstado('${e.trackingId}')">
+              ⚡ Avanzar estado
+            </button>
+          ` : `
+            <span style="color:var(--green);font-size:13px">✅ Entrega completada</span>
+          `}
+          <button class="btn btn-secondary" onclick="navigate('page-lista')">← Volver a lista</button>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-error show">❌ ${err.message}</div>`;
+  }
+}
+
+// ─── AVANZAR ESTADO ───────────────────────────────────────────
+async function avanzarEstado(trackingId) {
+  try {
+    const res = await fetchAuth(`/api/envios/${trackingId}/estado`, { method: 'PATCH' });
+    const data = await res.json();
+
+    if (res.status === 401) { window.location.href = '/login.html'; return; }
+    if (!res.ok) throw new Error(data.error);
+
+    await verDetalle(trackingId);
+  } catch (err) {
+    showAlert('alert-detalle', `❌ ${err.message}`, 'error');
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.nav a').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      navigate(a.dataset.page);
+    });
+  });
+
+  document.getElementById('form-crear').addEventListener('submit', crearEnvio);
+
+  document.getElementById('input-buscar').addEventListener('keydown', e => {
+    if (e.key === 'Enter') buscarEnvio();
+  });
+
+  navigate('page-crear');
+});
