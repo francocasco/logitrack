@@ -5,8 +5,8 @@ const { v4: uuidv4 } = require('uuid');
 
 // ─── CONEXIÓN A TURSO ─────────────────────────────────────────
 const db = createClient({
-  url:       process.env.TURSO_URL,
-  authToken: process.env.TURSO_TOKEN
+  url: process.env.TURSO_URL || "file:./db/database.db",
+  authToken: process.env.TURSO_TOKEN || undefined
 });
 
 // ─── CONSTANTES ───────────────────────────────────────────────
