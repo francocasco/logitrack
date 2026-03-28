@@ -159,13 +159,19 @@ app.get('*', (req, res) => {
 // ─────────────────────────────────────────
 //  INICIO — inicializar DB antes de escuchar
 // ─────────────────────────────────────────
-db.inicializar()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`\n✅ LogiTrack corriendo en http://localhost:${PORT}\n`);
+// Solo iniciar el servidor si este archivo se ejecuta directamente (npm start)
+if (require.main === module) {
+  db.inicializar()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`\n✅ LogiTrack corriendo en http://localhost:${PORT}\n`);
+      });
+    })
+    .catch(err => {
+      console.error('❌ Error al inicializar la base de datos:', err.message);
+      process.exit(1);
     });
-  })
-  .catch(err => {
-    console.error('❌ Error al inicializar la base de datos:', err.message);
-    process.exit(1);
-  });
+}
+
+// Exportar app para Jest + Supertest
+module.exports = app;
