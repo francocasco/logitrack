@@ -1,28 +1,18 @@
 name: CI
+run-name: Ejecución de Pipeline de CI
 
-on:
-  push:
-    branches:
-      - main
-      - development
-      - pipeline
-
-  pull_request:
-    branches:
-      - main
-      - development
-      - pipeline
+on: [push]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 18
 
