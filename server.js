@@ -52,6 +52,63 @@ async function requireAuth(req, res, next) {
 }
 
 // ─────────────────────────────────────────
+//  RUTAS DE REGISTRO (públicas)
+// ─────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Crear cuenta de usuario
+ *     description: Registra un nuevo usuario en el sistema
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             email: usuario@email.com
+ *             telefono: "+54 11 1234-5678"
+ *             nombreUsuario: juanperez
+ *             password: 123456
+ *     responses:
+ *       201:
+ *         description: Usuario creado correctamente
+ *       400:
+ *         description: Datos inválidos
+ *       409:
+ *         description: Email ya registrado
+ */
+app.post('/api/auth/register', async (req, res) => {
+  const { email, telefono, nombreUsuario, password } = req.body;
+
+  if (!email || !telefono || !nombreUsuario || !password) {
+    return res.status(400).json({ error: 'Todos los campos son obligatorios.' });
+  }
+
+  if (nombreUsuario.trim().length < 3) {
+    return res.status(400).json({ error: 'El nombre de usuario debe tener al menos 3 caracteres.' });
+  }
+
+  try {
+    const resultado = await db.crearUsuario(
+      email.trim().toLowerCase(),
+      telefono.trim(),
+      nombreUsuario.trim(),
+      password
+    );
+
+    if (resultado.error) {
+      return res.status(409).json({ error: resultado.error });
+    }
+
+    res.status(201).json({ mensaje: 'Cuenta creada correctamente. Ya podés iniciar sesión.' });
+  } catch (err) {
+    console.error('Error al registrar usuario:', err.message);
+    res.status(500).json({ error: 'No se pudo crear la cuenta. Intente nuevamente.' });
+  }
+});
+
+// ─────────────────────────────────────────
 //  RUTAS DE AUTENTICACIÓN (públicas)
 // ─────────────────────────────────────────
 

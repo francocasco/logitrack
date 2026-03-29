@@ -32,11 +32,14 @@ async function inicializar() {
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS usuarios (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      passwordHash TEXT NOT NULL,
-      intentosFallidos INTEGER NOT NULL DEFAULT 0,
-      bloqueadoHasta TEXT
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    telefono TEXT NOT NULL,
+    nombreUsuario TEXT NOT NULL,
+    passwordHash TEXT NOT NULL,
+    intentosFallidos INTEGER NOT NULL DEFAULT 0,
+    bloqueadoHasta TEXT,
+    fechaCreacion TEXT NOT NULL
     )
   `);
 
@@ -50,27 +53,62 @@ async function inicializar() {
   `);
 
   // Crear usuario admin inicial si no existe
-  const email = process.env.ADMIN_EMAIL;
-  const pass  = process.env.ADMIN_PASS;
+const email = process.env.ADMIN_EMAIL;
+const pass  = process.env.ADMIN_PASS;
 
-  if (!email || !pass) {
-    console.warn('⚠️  ADMIN_EMAIL o ADMIN_PASS no definidos en .env.');
-    return;
-  }
+if (!email || !pass) {
+  console.warn('⚠️  ADMIN_EMAIL o ADMIN_PASS no definidos en .env.');
+  return;
+}
 
-  const resultado = await db.execute({
+const resultado = await db.execute({
+  sql: 'SELECT id FROM usuarios WHERE email = ?',
+  args: [email]
+});
+
+if (resultado.rows.length === 0) {
+  const passwordHash = bcrypt.hashSync(pass, 10);
+  const ahora = new Date().toISOString();
+
+  await db.execute({
+    sql: `INSERT INTO usuarios (email, telefono, nombreUsuario, passwordHash, fechaCreacion)
+          VALUES (?, ?, ?, ?, ?)`,
+    args: [
+      email,
+      process.env.ADMIN_PHONE || '0000000000',
+      process.env.ADMIN_USERNAME || 'admin',
+      passwordHash,
+      ahora
+    ]
+  });
+
+  console.log(`✅ Usuario inicial creado: ${email}`);
+}
+
+}
+
+// ─── REGISTRO DE USUARIO ────────────────────────────────────────────
+
+async function crearUsuario(email, telefono, nombreUsuario, password) {
+  const ahora = new Date().toISOString();
+
+  const existe = await db.execute({
     sql: 'SELECT id FROM usuarios WHERE email = ?',
     args: [email]
   });
-
-  if (resultado.rows.length === 0) {
-    const passwordHash = bcrypt.hashSync(pass, 10);
-    await db.execute({
-      sql: 'INSERT INTO usuarios (email, passwordHash) VALUES (?, ?)',
-      args: [email, passwordHash]
-    });
-    console.log(`✅ Usuario inicial creado: ${email}`);
+  if (existe.rows.length > 0) {
+    return { error: 'Ya existe una cuenta con ese email.' };
   }
+
+  const passwordHash = bcrypt.hashSync(password, 10);
+
+  await db.execute({
+    sql: `INSERT INTO usuarios (email, telefono, nombreUsuario, passwordHash, fechaCreacion)
+          VALUES (?, ?, ?, ?, ?)`,
+    args: [email, telefono, nombreUsuario, passwordHash, ahora]
+  });
+
+  return { ok: true };
 }
 
 // ─── AUTENTICACIÓN ────────────────────────────────────────────
@@ -255,5 +293,6 @@ module.exports = {
   listarEnvios,
   buscarPorTracking,
   cambiarEstado,
-  ESTADOS
+  ESTADOS,
+  crearUsuario
 };

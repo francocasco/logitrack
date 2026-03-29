@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LogiTrack — Crear cuenta</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .login-wrapper { min-height: 100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); }
+    .login-box { width:100%; max-width:400px; padding:0 20px; }
+    .login-logo { text-align:center; margin-bottom:32px; }
+    .login-logo .icon { font-size:36px; margin-bottom:8px; }
+    .login-logo h1 { font-family:var(--mono); font-size:22px; font-weight:600; color:var(--accent); letter-spacing:0.1em; }
+    .login-logo p { font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-top:4px; }
+    .login-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:32px; }
+    .login-card h2 { font-family:var(--mono); font-size:14px; font-weight:500; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:24px; }
+    .btn-login { width:100%; justify-content:center; padding:11px; font-size:14px; margin-top:8px; }
+    .login-footer { text-align:center; margin-top:20px; font-size:12px; color:var(--text-muted); }
+    .login-footer a { color:var(--accent); text-decoration:none; }
+  </style>
+</head>
+<body>
+  <div class="login-wrapper">
+    <div class="login-box">
+
+      <div class="login-logo">
+        <div class="icon">📦</div>
+        <h1>LogiTrack</h1>
+        <p>Crear cuenta</p>
+      </div>
+
+      <div class="login-card">
+        <h2>Nueva cuenta</h2>
+
+        <div id="alert-register" class="alert"></div>
+
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input id="email" type="email" placeholder="tu@email.com" autocomplete="email" />
+        </div>
+
+        <div class="form-group">
+          <label for="telefono">Teléfono</label>
+          <input id="telefono" type="tel" placeholder="+54 11 1234-5678" />
+        </div>
+
+        <div class="form-group">
+          <label for="nombreUsuario">Nombre de usuario</label>
+          <input id="nombreUsuario" type="text" placeholder="tuusuario" />
+        </div>
+
+        <div class="form-group">
+          <label for="password">Contraseña</label>
+          <input id="password" type="password" placeholder="••••••••" autocomplete="new-password" />
+        </div>
+
+        <button id="btn-register" class="btn btn-primary btn-login" onclick="registrar()">
+          Crear cuenta →
+        </button>
+      </div>
+
+      <div class="login-footer">
+        ¿Ya tenés cuenta?
+        <a href="/login.html">Iniciar sesión</a>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function showAlert(msg, tipo = 'error') {
+      const el = document.getElementById('alert-register');
+      el.className = `alert alert-${tipo} show`;
+      el.textContent = msg;
+    }
+
+    async function registrar() {
+      const email         = document.getElementById('email').value.trim();
+      const telefono      = document.getElementById('telefono').value.trim();
+      const nombreUsuario = document.getElementById('nombreUsuario').value.trim();
+      const password      = document.getElementById('password').value;
+      const btn           = document.getElementById('btn-register');
+
+      if (!email || !telefono || !nombreUsuario || !password) {
+        showAlert('Todos los campos son obligatorios.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Creando cuenta...';
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, telefono, nombreUsuario, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showAlert(data.error || 'No se pudo crear la cuenta.');
+          return;
+        }
+
+        showAlert(data.mensaje || 'Cuenta creada correctamente.', 'success');
+
+        setTimeout(() => {
+          window.location.href = '/login.html';
+        }, 1500);
+
+      } catch {
+        showAlert('No se pudo conectar con el servidor.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Crear cuenta →';
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') registrar();
+    });
+  </script>
+</body>
+</html>
