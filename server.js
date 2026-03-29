@@ -3,7 +3,33 @@ const express = require('express');
 const path = require('path');
 const db = require('./db/database');
 
+//Swagger
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsDoc = require('swagger-jsdoc');
+
 const app = express();
+
+
+const swaggerOptions = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "LogiTrack API",
+      version: "1.0.0",
+      description: "API para gestión de envíos"
+    },
+    servers: [
+      {
+        url: "http://localhost:3000"
+      }
+    ]
+  },
+  apis: ["./server.js"],
+};
+
+const swaggerSpec = swaggerJsDoc(swaggerOptions);
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -30,6 +56,27 @@ async function requireAuth(req, res, next) {
 // ─────────────────────────────────────────
 
 // POST /api/auth/login
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Iniciar sesión
+ *     description: Permite autenticarse y obtener un token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             email: usuario@email.com
+ *             password: 123456
+ *     responses:
+ *       200:
+ *         description: Login exitoso
+ *       400:
+ *         description: Datos incompletos
+ *       401:
+ *         description: Credenciales inválidas
+ */
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -50,6 +97,16 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // POST /api/auth/logout
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Cerrar sesión
+ *     description: Cierra la sesión del usuario autenticado
+ *     responses:
+ *       200:
+ *         description: Sesión cerrada correctamente
+ */
 app.post('/api/auth/logout', async (req, res) => {
   const token = req.headers['authorization']?.replace('Bearer ', '');
   if (token) await db.logout(token);
@@ -57,6 +114,18 @@ app.post('/api/auth/logout', async (req, res) => {
 });
 
 // GET /api/auth/verificar
+/**
+ * @swagger
+ * /api/auth/verificar:
+ *   get:
+ *     summary: Verificar sesión
+ *     description: Verifica si el token es válido
+ *     responses:
+ *       200:
+ *         description: Token válido
+ *       401:
+ *         description: Token inválido o expirado
+ */
 app.get('/api/auth/verificar', async (req, res) => {
   const token = req.headers['authorization']?.replace('Bearer ', '');
   const usuario = await db.verificarToken(token);
@@ -73,6 +142,26 @@ app.get('/api/auth/verificar', async (req, res) => {
 // ─────────────────────────────────────────
 
 // POST /api/envios
+/**
+ * @swagger
+ * /api/envios:
+ *   post:
+ *     summary: Crear envío
+ *     description: Registra un nuevo envío en el sistema
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             remitente: Juan Pérez
+ *             destinatario: María López
+ *             producto: Celular
+ *     responses:
+ *       201:
+ *         description: Envío creado correctamente
+ *       400:
+ *         description: Datos inválidos
+ */
 app.post('/api/envios', requireAuth, async (req, res) => {
   const { remitente, destinatario, producto } = req.body;
 
@@ -96,6 +185,29 @@ app.post('/api/envios', requireAuth, async (req, res) => {
 });
 
 // GET /api/envios
+/**
+ * @swagger
+ * /api/envios:
+ *   get:
+ *     summary: Listar envíos
+ *     description: Devuelve una lista paginada de envíos
+ *     parameters:
+ *       - in: query
+ *         name: pagina
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: porPagina
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: estado
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lista de envíos
+ */
 app.get('/api/envios', requireAuth, async (req, res) => {
   const pagina    = Math.max(1, parseInt(req.query.pagina) || 1);
   const porPagina = Math.min(50, Math.max(1, parseInt(req.query.porPagina) || 10));
@@ -111,6 +223,24 @@ app.get('/api/envios', requireAuth, async (req, res) => {
 });
 
 // GET /api/envios/:trackingId
+/**
+ * @swagger
+ * /api/envios/{trackingId}:
+ *   get:
+ *     summary: Buscar envío por tracking ID
+ *     description: Devuelve un envío específico
+ *     parameters:
+ *       - in: path
+ *         name: trackingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Envío encontrado
+ *       404:
+ *         description: Envío no encontrado
+ */
 app.get('/api/envios/:trackingId', requireAuth, async (req, res) => {
   try {
     const envio = await db.buscarPorTracking(req.params.trackingId.toUpperCase());
@@ -125,6 +255,26 @@ app.get('/api/envios/:trackingId', requireAuth, async (req, res) => {
 });
 
 // PATCH /api/envios/:trackingId/estado
+/**
+ * @swagger
+ * /api/envios/{trackingId}/estado:
+ *   patch:
+ *     summary: Cambiar estado del envío
+ *     description: Avanza el estado del envío en el flujo logístico
+ *     parameters:
+ *       - in: path
+ *         name: trackingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Estado actualizado correctamente
+ *       400:
+ *         description: Error en la transición de estado
+ *       404:
+ *         description: Envío no encontrado
+ */
 app.patch('/api/envios/:trackingId/estado', requireAuth, async (req, res) => {
   try {
     const resultado = await db.cambiarEstado(req.params.trackingId.toUpperCase());
