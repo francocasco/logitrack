@@ -47,3 +47,133 @@ http://localhost:3000
 ```
 creado → en tránsito → en sucursal → entregado
 ```
+# Documentación Swagger — LogiTrack
+
+## Introducción
+
+Para la documentación de los endpoints del sistema se implementó Swagger, utilizando la especificación OpenAPI Specification.
+
+Esta herramienta permite generar automáticamente una interfaz web interactiva donde se pueden visualizar, entender y probar los distintos endpoints de la API sin necesidad de herramientas externas como Postman.
+
+Su uso facilita tanto el desarrollo como las tareas de testing, permitiendo validar rápidamente el comportamiento del sistema.
+
+---
+
+## Acceso a la documentación
+
+Una vez iniciado el servidor, la documentación se encuentra disponible en:
+
+http://localhost:3000/api-docs
+
+Desde esta URL se accede a una interfaz gráfica donde se listan todos los endpoints disponibles, junto con sus métodos HTTP, parámetros, ejemplos de entrada y posibles respuestas.
+
+---
+
+## Funcionalidades documentadas
+
+La documentación incluye todos los endpoints implementados en el sistema, organizados en dos grandes grupos:
+
+### 1. Autenticación
+
+* **POST /api/auth/login**
+
+  * Permite iniciar sesión en el sistema mediante email y contraseña.
+  * Devuelve un token de autenticación.
+
+* **POST /api/auth/logout**
+
+  * Permite cerrar la sesión del usuario autenticado.
+
+* **GET /api/auth/verificar**
+
+  * Verifica si el token enviado es válido o ha expirado.
+
+---
+
+### 2. Gestión de envíos
+
+* **POST /api/envios**
+
+  * Permite crear un nuevo envío.
+  * Requiere autenticación previa.
+  * Valida los datos de entrada (remitente, destinatario, producto).
+
+* **GET /api/envios**
+
+  * Devuelve una lista paginada de envíos.
+  * Permite filtrar por estado.
+  * Incluye parámetros opcionales como página y cantidad por página.
+
+* **GET /api/envios/{trackingId}**
+
+  * Permite consultar un envío específico mediante su tracking ID.
+
+* **PATCH /api/envios/{trackingId}/estado**
+
+  * Permite actualizar el estado de un envío dentro del flujo logístico.
+
+---
+
+## Seguridad
+
+Los endpoints de gestión de envíos están protegidos mediante autenticación basada en token.
+
+Para acceder a estos endpoints, es necesario:
+
+1. Realizar login mediante `/api/auth/login`.
+2. Obtener el token.
+3. Enviar el token en el header:
+
+Authorization: Bearer <token>
+
+Swagger permite ingresar este token manualmente al probar los endpoints protegidos.
+
+---
+
+## Uso de Swagger
+
+La interfaz de Swagger permite:
+
+* Visualizar todos los endpoints disponibles.
+* Consultar la estructura de datos requerida para cada operación.
+* Ejecutar solicitudes directamente desde el navegador.
+* Analizar las respuestas del servidor en tiempo real.
+* Validar códigos de estado HTTP (200, 400, 401, 404, 500).
+
+---
+
+## Implementación técnica
+
+La integración de Swagger se realizó utilizando las librerías:
+
+* swagger-ui-express
+* swagger-jsdoc
+
+Se configuró un objeto de definición OpenAPI dentro del servidor, indicando:
+
+* Versión de la API
+* Información general del sistema
+* Servidor base (localhost:3000)
+* Archivos donde se documentan los endpoints
+
+Los endpoints fueron documentados mediante comentarios en formato JSDoc directamente en el archivo principal del servidor (`server.js`), permitiendo que la documentación se genere automáticamente a partir del código.
+
+---
+
+## Beneficios de la implementación
+
+La incorporación de Swagger aporta múltiples ventajas:
+
+* Documentación centralizada y siempre actualizada.
+* Mejora la comprensión del sistema para nuevos desarrolladores.
+* Facilita el testing manual sin herramientas externas.
+* Permite validar rápidamente cambios en la API.
+* Mejora la calidad del producto final.
+
+---
+
+## Conclusión
+
+La integración de Swagger en LogiTrack permite contar con una documentación clara, interactiva y alineada con estándares de la industria, facilitando tanto el desarrollo como la validación del sistema.
+
+Esta herramienta resulta fundamental para garantizar la mantenibilidad y escalabilidad del proyecto.
