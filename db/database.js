@@ -26,7 +26,8 @@ async function inicializar() {
       producto TEXT NOT NULL,
       estado TEXT NOT NULL DEFAULT 'creado',
       fechaCreacion TEXT NOT NULL,
-      fechaActualizacion TEXT NOT NULL
+      fechaActualizacion TEXT NOT NULL,
+      rol TEXT NOT NULL DEFAULT 'cliente'
     )
   `);
 
@@ -39,7 +40,8 @@ async function inicializar() {
     passwordHash TEXT NOT NULL,
     intentosFallidos INTEGER NOT NULL DEFAULT 0,
     bloqueadoHasta TEXT,
-    fechaCreacion TEXT NOT NULL
+    fechaCreacion TEXT NOT NULL,
+    rol TEXT NOT NULL DEFAULT 'Cliente'
     )
   `);
 
@@ -71,14 +73,15 @@ if (resultado.rows.length === 0) {
   const ahora = new Date().toISOString();
 
   await db.execute({
-    sql: `INSERT INTO usuarios (email, telefono, nombreUsuario, passwordHash, fechaCreacion)
-          VALUES (?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO usuarios (email, telefono, nombreUsuario, passwordHash, fechaCreacion, rol)
+          VALUES (?, ?, ?, ?, ?, ?)`,
     args: [
       email,
       process.env.ADMIN_PHONE || '0000000000',
       process.env.ADMIN_USERNAME || 'admin',
       passwordHash,
-      ahora
+      ahora,
+      'Supervisor'
     ]
   });
 
@@ -103,9 +106,9 @@ async function crearUsuario(email, telefono, nombreUsuario, password) {
   const passwordHash = bcrypt.hashSync(password, 10);
 
   await db.execute({
-    sql: `INSERT INTO usuarios (email, telefono, nombreUsuario, passwordHash, fechaCreacion)
-          VALUES (?, ?, ?, ?, ?)`,
-    args: [email, telefono, nombreUsuario, passwordHash, ahora]
+    sql: `INSERT INTO usuarios (email, telefono, nombreUsuario, passwordHash, fechaCreacion, rol)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [email, telefono, nombreUsuario, passwordHash, ahora, 'Cliente']
   });
 
   return { ok: true };
@@ -196,7 +199,7 @@ async function verificarToken(token) {
   if (!sesion) return null;
 
   const resUsuario = await db.execute({
-    sql: 'SELECT id, email FROM usuarios WHERE id = ?',
+    sql: 'SELECT id, email, rol FROM usuarios WHERE id = ?',
     args: [sesion.usuarioId]
   });
 
@@ -284,6 +287,24 @@ async function cambiarEstado(trackingId) {
   return { trackingId, nuevoEstado };
 }
 
+// ─── GESTION USUARIOS ───────────────────────────────────────────────────
+
+async function listarUsuarios() {
+  const res = await db.execute({
+    sql: `SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion
+          FROM usuarios
+          ORDER BY fechaCreacion DESC`
+  });
+  return res.rows;
+}
+
+async function actualizarRolUsuario(id, rol) {
+  await db.execute({
+    sql: 'UPDATE usuarios SET rol = ? WHERE id = ?',
+    args: [rol, id]
+  });
+}
+
 module.exports = {
   inicializar,
   login,
@@ -294,5 +315,7 @@ module.exports = {
   buscarPorTracking,
   cambiarEstado,
   ESTADOS,
-  crearUsuario
+  crearUsuario,
+  listarUsuarios,
+  actualizarRolUsuario
 };

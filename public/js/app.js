@@ -21,6 +21,9 @@ function navigate(pageId) {
     paginacion.pagina = 1;
     cargarLista();
   }
+  if (pageId === 'page-usuarios') {
+    cargarUsuarios();
+  }
 }
 
 // ─── UTILIDADES ───────────────────────────────────────────────
@@ -139,6 +142,72 @@ async function cargarLista() {
     renderPaginacion();
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="5" style="color:var(--red)">❌ ${err.message}</td></tr>`;
+  }
+}
+
+async function cargarUsuarios() {
+  const tbody = document.getElementById('usuarios-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="6" style="color:var(--text-muted);text-align:center;padding:24px">
+        Cargando usuarios...
+      </td>
+    </tr>
+  `;
+  try {
+    const res = await fetchAuth('/api/usuarios');
+    const data = await res.json();
+
+    if (res.status === 401) {
+      window.location.href = '/login.html';
+      return;
+    }
+    if (!res.ok) throw new Error(data.error || 'No se pudieron cargar los usuarios.');
+
+    const { usuarios } = data;
+
+    if (!usuarios.length) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6">
+            <div class="empty">
+              <div class="empty-icon">👥</div>
+              <p>No hay usuarios registrados.</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = usuarios.map(u => `
+      <tr>
+        <td>${u.id}</td>
+        <td>${u.email}</td>
+        <td>${u.telefono}</td>
+        <td>${u.nombreUsuario}</td>
+        <td>
+          <select data-user-id="${u.id}">
+            <option value="Cliente" ${u.rol === 'Cliente' ? 'selected' : ''}>Cliente</option>
+            <option value="Operador" ${u.rol === 'Operador' ? 'selected' : ''}>Operador</option>
+            <option value="Supervisor" ${u.rol === 'Supervisor' ? 'selected' : ''}>Supervisor</option>
+          </select>
+        </td>
+        <td>
+          <button class="btn btn-secondary btn-sm" data-action="guardar-rol" data-user-id="${u.id}">
+            Aceptar
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="color:var(--red)">❌ ${err.message}</td>
+      </tr>
+    `;
   }
 }
 
@@ -349,4 +418,35 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   navigate('page-crear');
+});
+
+document.addEventListener('click', async e => {
+  const btn = e.target.closest('[data-action="guardar-rol"]');
+  if (!btn) return;
+
+  const id = btn.getAttribute('data-user-id');
+  const select = document.querySelector(`select[data-user-id="${id}"]`);
+  if (!select) return;
+
+  const rol = select.value;
+
+  try {
+    const res = await fetchAuth(`/api/usuarios/${id}/rol`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rol })
+    });
+
+    const data = await res.json();
+
+    if (res.status === 401) {
+      window.location.href = '/login.html';
+      return;
+    }
+    if (!res.ok) throw new Error(data.error || 'No se pudo actualizar el rol.');
+
+    showAlert('alert-usuarios', data.mensaje || 'Rol actualizado correctamente.', 'success');
+  } catch (err) {
+    showAlert('alert-usuarios', `❌ ${err.message}`, 'error');
+  }
 });

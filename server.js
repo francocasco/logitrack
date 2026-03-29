@@ -195,6 +195,84 @@ app.get('/api/auth/verificar', async (req, res) => {
 });
 
 // ─────────────────────────────────────────
+//  RUTAS DE GESTION USUARIOS
+// ─────────────────────────────────────────
+
+/**
+ * @swagger
+ * /api/usuarios:
+ *   get:
+ *     summary: Listar usuarios
+ *     description: Devuelve la lista de usuarios (solo Supervisor)
+ *     responses:
+ *       200:
+ *         description: Lista de usuarios
+ *       403:
+ *         description: Sin permisos
+ */
+app.get('/api/usuarios', requireAuth, async (req, res) => {
+  if (req.usuario.rol !== 'Supervisor') {
+    return res.status(403).json({ error: 'No tenés permisos para ver usuarios.' });
+  }
+
+  try {
+    const usuarios = await db.listarUsuarios();
+    res.json({ usuarios });
+  } catch (err) {
+    console.error('Error al listar usuarios:', err.message);
+    res.status(500).json({ error: 'No se pudieron obtener los usuarios.' });
+  }
+});
+
+/**
+ * @swagger
+ * /api/usuarios/{id}/rol:
+ *   patch:
+ *     summary: Modificar rol de usuario
+ *     description: Cambia el rol de un usuario (solo Supervisor)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             rol: Operador
+ *     responses:
+ *       200:
+ *         description: Rol actualizado
+ *       400:
+ *         description: Rol inválido
+ *       403:
+ *         description: Sin permisos
+ */
+app.patch('/api/usuarios/:id/rol', requireAuth, async (req, res) => {
+  if (req.usuario.rol !== 'Supervisor') {
+    return res.status(403).json({ error: 'No tenés permisos para modificar roles.' });
+  }
+
+  const { rol } = req.body;
+  const rolesValidos = ['Cliente', 'Operador', 'Supervisor'];
+
+  if (!rolesValidos.includes(rol)) {
+    return res.status(400).json({ error: 'Rol inválido.' });
+  }
+
+  try {
+    await db.actualizarRolUsuario(req.params.id, rol);
+    res.json({ mensaje: 'Rol actualizado correctamente.' });
+  } catch (err) {
+    console.error('Error al actualizar rol:', err.message);
+    res.status(500).json({ error: 'No se pudo actualizar el rol.' });
+  }
+});
+
+
+// ─────────────────────────────────────────
 //  RUTAS API (protegidas)
 // ─────────────────────────────────────────
 

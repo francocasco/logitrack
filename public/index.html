@@ -37,7 +37,14 @@
             <span class="nav-icon">🔍</span>
             <span>Buscar</span>
           </a>
+        </li>        
+        <li>
+        <a data-page="page-usuarios">
+        <span class="nav-icon">👥</span>
+        <span>Usuarios</span>
+        </a>
         </li>
+
       </ul>
 
       <!-- Usuario y cerrar sesión -->
@@ -139,6 +146,34 @@
         </div>
         <div id="detalle-container"></div>
       </section>
+
+      <!-- PÁGINA: lista usuarios -->
+       <section class="page" id="page-usuarios">
+  <div class="page-header">
+    <h2>Usuarios</h2>
+    <p>Administración de cuentas y roles.</p>
+  </div>
+
+  <div id="alert-usuarios" class="alert"></div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Email</th>
+            <th>Teléfono</th>
+            <th>Usuario</th>
+            <th>Rol</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="usuarios-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
 
     </main>
   </div>
