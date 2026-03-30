@@ -53,6 +53,15 @@ async function inicializar() {
     )
   `);
 
+  const columnasUsuarios = ['telefono', 'nombreUsuario', 'rol', 'fechaCreacion'];
+  for (const col of columnasUsuarios) {
+  try {
+    await db.execute(`ALTER TABLE usuarios ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
+  } catch (e) {
+    if (!e.message.toLowerCase().includes('duplicate column name')) throw e;
+  }
+  }
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS sesiones (
       token TEXT PRIMARY KEY,
