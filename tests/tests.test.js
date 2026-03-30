@@ -202,3 +202,147 @@ describe("TEST5 Visualizar información del envío", () => {
 
 });
 
+// ─────────────────────────────────────────
+// CREAR CUENTA DE USUARIO
+// ─────────────────────────────────────────
+
+describe("TEST6 Crear cuenta de usuario", () => {
+  
+  test("ESCN1 Creación de cuenta exitosa", async () => {
+    const response = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email: "usuario.nuevo@logitrack.com",
+        telefono: "+54 11 1234-5678",
+        nombreUsuario: "usuariounico123",
+        password: "Password123!"
+      });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.body.mensaje).toBeDefined();
+    expect(response.body.mensaje).toContain("Cuenta creada");
+  });
+
+  test("ESCN2.1 Creación fallida - sin email", async () => {
+    const response = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email: "",
+        telefono: "+54 11 1234-5678",
+        nombreUsuario: "usuario123",
+        password: "Password123!"
+      });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toBeDefined();
+    expect(response.body.error).toContain("obligatorios");
+  });
+
+  test("ESCN2.2 Creación fallida - sin teléfono", async () => {
+    const response = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email: "test@logitrack.com",
+        telefono: "",
+        nombreUsuario: "usuario123",
+        password: "Password123!"
+      });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toBeDefined();
+  });
+
+  test("ESCN2.3 Creación fallida - sin nombreUsuario", async () => {
+    const response = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email: "test@logitrack.com",
+        telefono: "+54 11 1234-5678",
+        nombreUsuario: "",
+        password: "Password123!"
+      });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toBeDefined();
+  });
+
+  test("ESCN2.4 Creación fallida - sin password", async () => {
+    const response = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email: "test@logitrack.com",
+        telefono: "+54 11 1234-5678",
+        nombreUsuario: "usuario123",
+        password: ""
+      });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toBeDefined();
+  });
+});
+
+// ─────────────────────────────────────────
+// MODIFICACIÓN DE ROLES DE USUARIOS
+// ─────────────────────────────────────────
+
+describe("TEST7 Modificación de roles de usuarios", () => {
+  let supervisorToken;
+
+  beforeAll(() => {
+    supervisorToken = token;
+  });
+
+  test.each(["Cliente", "Operador", "Supervisor"])(
+    "ESCN1 Modificación exitosa - cambiar rol a %s",
+    async (nuevoRol) => {
+      const marcaTiempo = Date.now();
+      const email = `roles.${nuevoRol.toLowerCase()}.${marcaTiempo}@logitrack.com`;
+      const nombreUsuario = `roles_${nuevoRol.toLowerCase()}_${marcaTiempo}`;
+
+      const registro = await request(app)
+        .post("/api/auth/register")
+        .send({
+          email,
+          telefono: "+54 11 5555-5555",
+          nombreUsuario,
+          password: "ClientePass123!"
+        });
+
+      expect(registro.statusCode).toBe(201);
+
+      const listaUsuarios = await request(app)
+        .get("/api/usuarios")
+        .set("Authorization", `Bearer ${supervisorToken}`);
+
+      expect(listaUsuarios.statusCode).toBe(200);
+
+      const usuarioCreado = listaUsuarios.body.usuarios.find(
+        (usuario) => usuario.email === email
+      );
+
+      expect(usuarioCreado).toBeDefined();
+
+      const cambioRol = await request(app)
+        .patch(`/api/usuarios/${usuarioCreado.id}/rol`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({ rol: nuevoRol });
+
+      expect(cambioRol.statusCode).toBe(200);
+      expect(cambioRol.body.mensaje).toContain("Rol actualizado");
+
+      const verificacion = await request(app)
+        .get("/api/usuarios")
+        .set("Authorization", `Bearer ${supervisorToken}`);
+
+      expect(verificacion.statusCode).toBe(200);
+
+      const usuarioActualizado = verificacion.body.usuarios.find(
+        (usuario) => usuario.id === usuarioCreado.id
+      );
+
+      expect(usuarioActualizado).toBeDefined();
+      expect(usuarioActualizado.rol).toBe(nuevoRol);
+    }
+  );
+});
+
