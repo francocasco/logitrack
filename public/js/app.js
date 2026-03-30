@@ -52,6 +52,26 @@ function showAlert(id, msg, tipo = 'success') {
   setTimeout(() => el.classList.remove('show'), 4000);
 }
 
+function escapeHtml(texto = '') {
+  return String(texto)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function obtenerUsuarioActual() {
+  if (window.usuarioActual) return window.usuarioActual;
+
+  const res = await fetchAuth('/api/auth/verificar');
+  if (!res.ok) throw new Error('No se pudo verificar la sesión actual.');
+
+  const data = await res.json();
+  window.usuarioActual = data;
+  return data;
+}
+
 // ─── VALIDACIONES FRONTEND ────────────────────────────────────
 function validarCampo(valor, nombre, minLen = 2, maxLen = 100) {
   if (!valor || valor.trim().length === 0) return `El campo ${nombre} es obligatorio.`;
@@ -312,6 +332,7 @@ async function verDetalle(trackingId) {
   container.innerHTML = '<p style="color:var(--text-muted)">Cargando...</p>';
 
   try {
+    const usuarioActual = await obtenerUsuarioActual();
     const res = await fetchAuth(`/api/envios/${trackingId}`);
     const e = await res.json();
 
@@ -322,6 +343,8 @@ async function verDetalle(trackingId) {
     const ICONOS  = ['📋', '🚚', '🏢', '✅'];
     const idx = ESTADOS.indexOf(e.estado);
     const puedeAvanzar = idx < ESTADOS.length - 1;
+    const puedeEditar = ['Operador', 'Supervisor'].includes(usuarioActual.rol);
+    const direccionEntrega = e.direccionEntrega?.trim() ? e.direccionEntrega : 'Sin especificar';
 
     const stepsHtml = ESTADOS.map((s, i) => {
       const cls = i < idx ? 'done' : i === idx ? 'current' : '';
@@ -346,6 +369,10 @@ async function verDetalle(trackingId) {
             <label>Destinatario</label>
             <div class="value">${e.destinatario}</div>
           </div>
+          <div class="detail-item" style="grid-column:1/-1">
+            <label>Dirección de entrega</label>
+            <div class="value">${direccionEntrega}</div>
+          </div>
           <div class="detail-item">
             <label>Producto</label>
             <div class="value">${e.producto}</div>
@@ -364,12 +391,29 @@ async function verDetalle(trackingId) {
           </div>
         </div>
 
+        ${puedeEditar ? `
+          <div class="timeline">
+            <h3>Editar datos del envío</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="editar-destinatario">Destinatario</label>
+                <input id="editar-destinatario" type="text" value="${escapeHtml(e.destinatario)}" />
+              </div>
+              <div class="form-group">
+                <label for="editar-direccion">Dirección de entrega</label>
+                <input id="editar-direccion" type="text" value="${escapeHtml(e.direccionEntrega || '')}" placeholder="Ingresá la dirección de entrega" />
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="guardarCambiosEnvio('${e.trackingId}')">💾 Guardar cambios</button>
+          </div>
+        ` : ''}
+
         <div class="timeline">
           <h3>Progreso del envío</h3>
           <div class="timeline-steps">${stepsHtml}</div>
         </div>
 
-        <div style="margin-top:24px; display:flex; gap:10px; align-items:center">
+        <div style="margin-top:24px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
           <div id="alert-detalle" class="alert"></div>
           ${puedeAvanzar ? `
             <button class="btn btn-primary" onclick="avanzarEstado('${e.trackingId}')">
@@ -384,6 +428,35 @@ async function verDetalle(trackingId) {
     `;
   } catch (err) {
     container.innerHTML = `<div class="alert alert-error show">❌ ${err.message}</div>`;
+  }
+}
+
+async function guardarCambiosEnvio(trackingId) {
+  const destinatario = document.getElementById('editar-destinatario')?.value.trim() || '';
+  const direccionEntrega = document.getElementById('editar-direccion')?.value.trim() || '';
+
+  const errDestinatario = validarCampo(destinatario, 'destinatario');
+  const errDireccion = validarCampo(direccionEntrega, 'dirección de entrega');
+
+  if (errDestinatario || errDireccion) {
+    showAlert('alert-detalle', `❌ ${errDestinatario || errDireccion}`, 'error');
+    return;
+  }
+
+  try {
+    const res = await fetchAuth(`/api/envios/${trackingId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ destinatario, direccionEntrega })
+    });
+    const data = await res.json();
+
+    if (res.status === 401) { window.location.href = '/login.html'; return; }
+    if (!res.ok) throw new Error(data.error);
+
+    await verDetalle(trackingId);
+    showAlert('alert-detalle', `✅ ${data.mensaje}`, 'success');
+  } catch (err) {
+    showAlert('alert-detalle', `❌ ${err.message}`, 'error');
   }
 }
 

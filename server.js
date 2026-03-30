@@ -191,7 +191,7 @@ app.get('/api/auth/verificar', async (req, res) => {
     return res.status(401).json({ error: 'Token inválido o expirado.' });
   }
 
-  res.json({ email: usuario.email });
+  res.json({ email: usuario.email, rol: usuario.rol });
 });
 
 // ─────────────────────────────────────────
@@ -386,6 +386,40 @@ app.get('/api/envios/:trackingId', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Error al buscar envío:', err.message);
     res.status(500).json({ error: 'No se pudo consultar el envío.' });
+  }
+});
+
+// PATCH /api/envios/:trackingId
+app.patch('/api/envios/:trackingId', requireAuth, async (req, res) => {
+  if (!['Operador', 'Supervisor'].includes(req.usuario.rol)) {
+    return res.status(403).json({ error: 'No tenés permisos para modificar los datos del envío.' });
+  }
+
+  const { destinatario, direccionEntrega } = req.body;
+
+  if (!destinatario?.trim() || !direccionEntrega?.trim()) {
+    return res.status(400).json({ error: 'El destinatario y la dirección de entrega no pueden estar vacíos.' });
+  }
+
+  try {
+    const envioActualizado = await db.actualizarEnvio(
+      req.params.trackingId.toUpperCase(),
+      destinatario,
+      direccionEntrega
+    );
+
+    if (!envioActualizado) {
+      return res.status(404).json({ error: 'Envío no encontrado.' });
+    }
+
+    if (envioActualizado.error) {
+      return res.status(400).json({ error: envioActualizado.error });
+    }
+
+    res.json({ mensaje: 'Datos del envío actualizados correctamente.', envio: envioActualizado });
+  } catch (err) {
+    console.error('Error al modificar envío:', err.message);
+    res.status(500).json({ error: 'No se pudieron guardar los cambios del envío.' });
   }
 });
 
