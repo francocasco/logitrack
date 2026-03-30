@@ -20,5 +20,4 @@ jobs:
         run: npm ci
 
       - name: Run tests
-        run: npm run reset-db
-        run: npm test
+        run: npm run reset-db && npm test
