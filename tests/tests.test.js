@@ -346,3 +346,151 @@ describe("TEST7 Modificación de roles de usuarios", () => {
   );
 });
 
+// ─────────────────────────────────────────
+// MODIFICAR DATOS DEL ENVÍO
+// ─────────────────────────────────────────
+
+describe("TEST8 Modificar datos del envío", () => {
+  let supervisorToken;
+  let operadorToken;
+
+  beforeAll(async () => {
+    supervisorToken = token;
+
+    const marcaTiempo = Date.now();
+    const email = `operador.envios.${marcaTiempo}@logitrack.com`;
+
+    const registro = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email,
+        telefono: "+54 11 7777-7777",
+        nombreUsuario: `operadorenvios${marcaTiempo}`,
+        password: "Operador123!"
+      });
+
+    expect(registro.statusCode).toBe(201);
+
+    const listaUsuarios = await request(app)
+      .get("/api/usuarios")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    const usuarioCreado = listaUsuarios.body.usuarios.find(
+      (usuario) => usuario.email === email
+    );
+
+    expect(usuarioCreado).toBeDefined();
+
+    const cambioRol = await request(app)
+      .patch(`/api/usuarios/${usuarioCreado.id}/rol`)
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({ rol: "Operador" });
+
+    expect(cambioRol.statusCode).toBe(200);
+
+    const loginOperador = await request(app)
+      .post("/api/auth/login")
+      .send({
+        email,
+        password: "Operador123!"
+      });
+
+    expect(loginOperador.statusCode).toBe(200);
+    operadorToken = loginOperador.body.token;
+  });
+
+  test("ESCN1 Modificación exitosa", async () => {
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({
+        remitente: "Depósito Central",
+        destinatario: "Juan",
+        producto: "Notebook"
+      });
+
+    expect(crear.statusCode).toBe(201);
+
+    const trackingId = crear.body.trackingId;
+
+    const editar = await request(app)
+      .patch(`/api/envios/${trackingId}`)
+      .set("Authorization", `Bearer ${operadorToken}`)
+      .send({
+        destinatario: "Juan Pérez",
+        direccionEntrega: "Av. Siempre Viva 742"
+      });
+
+    expect(editar.statusCode).toBe(200);
+    expect(editar.body.mensaje).toContain("actualizados correctamente");
+
+    const detalle = await request(app)
+      .get(`/api/envios/${trackingId}`)
+      .set("Authorization", `Bearer ${operadorToken}`);
+
+    expect(detalle.statusCode).toBe(200);
+    expect(detalle.body.destinatario).toBe("Juan Pérez");
+    expect(detalle.body.direccionEntrega).toBe("Av. Siempre Viva 742");
+  });
+
+  test("ESCN2.1 Modificación fallida - valores vacíos", async () => {
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({
+        remitente: "Sucursal Norte",
+        destinatario: "María",
+        producto: "Documentación"
+      });
+
+    expect(crear.statusCode).toBe(201);
+
+    const editar = await request(app)
+      .patch(`/api/envios/${crear.body.trackingId}`)
+      .set("Authorization", `Bearer ${operadorToken}`)
+      .send({
+        destinatario: "",
+        direccionEntrega: ""
+      });
+
+    expect(editar.statusCode).toBe(400);
+    expect(editar.body.error).toBeDefined();
+  });
+
+  test("ESCN2.2 Modificación fallida - envío entregado", async () => {
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({
+        remitente: "Centro Logístico",
+        destinatario: "Pedro",
+        producto: "Monitor"
+      });
+
+    expect(crear.statusCode).toBe(201);
+
+    const trackingId = crear.body.trackingId;
+
+    await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+    await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+    await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    const editar = await request(app)
+      .patch(`/api/envios/${trackingId}`)
+      .set("Authorization", `Bearer ${operadorToken}`)
+      .send({
+        destinatario: "Pedro Gómez",
+        direccionEntrega: "Calle 123"
+      });
+
+    expect(editar.statusCode).toBe(400);
+    expect(editar.body.error).toContain("entregado");
+  });
+});
+
