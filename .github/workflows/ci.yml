@@ -19,5 +19,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: reset database
+        run: npm run reset-db  
+
       - name: Run tests
-        run: npm run reset-db && npm test
+        run: npm test
