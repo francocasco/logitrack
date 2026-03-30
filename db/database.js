@@ -31,6 +31,14 @@ async function inicializar() {
     )
   `);
 
+  try {
+    await db.execute(`ALTER TABLE envios ADD COLUMN direccionEntrega TEXT NOT NULL DEFAULT ''`);
+  } catch (error) {
+    if (!error.message.toLowerCase().includes('duplicate column name')) {
+      throw error;
+    }
+  }
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -262,6 +270,33 @@ async function buscarPorTracking(trackingId) {
   return res.rows[0] || null;
 }
 
+async function actualizarEnvio(trackingId, destinatario, direccionEntrega) {
+  const envio = await buscarPorTracking(trackingId);
+  if (!envio) return null;
+
+  if (envio.estado === 'entregado') {
+    return { error: 'No se puede modificar un envío que ya fue entregado.' };
+  }
+
+  const destinatarioNormalizado = destinatario?.trim();
+  const direccionNormalizada = direccionEntrega?.trim();
+
+  if (!destinatarioNormalizado || !direccionNormalizada) {
+    return { error: 'El destinatario y la dirección de entrega no pueden estar vacíos.' };
+  }
+
+  const ahora = new Date().toISOString();
+
+  await db.execute({
+    sql: `UPDATE envios
+          SET destinatario = ?, direccionEntrega = ?, fechaActualizacion = ?
+          WHERE trackingId = ?`,
+    args: [destinatarioNormalizado, direccionNormalizada, ahora, trackingId]
+  });
+
+  return buscarPorTracking(trackingId);
+}
+
 async function cambiarEstado(trackingId) {
   const res = await db.execute({
     sql: 'SELECT * FROM envios WHERE trackingId = ?',
@@ -313,6 +348,7 @@ module.exports = {
   crearEnvio,
   listarEnvios,
   buscarPorTracking,
+  actualizarEnvio,
   cambiarEstado,
   ESTADOS,
   crearUsuario,

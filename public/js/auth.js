@@ -54,6 +54,7 @@ async function cerrarSesion() {
     }
 
     const data = await res.json();
+    window.usuarioActual = data;
 
     // Mostrar email del usuario en el sidebar
     const userEl = document.getElementById('usuario-email');
