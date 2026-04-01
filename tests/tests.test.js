@@ -8,12 +8,10 @@ beforeAll(async () => {
   await db.inicializar();
 
   // Login para obtener token válido
-  const res = await request(app)
-    .post("/api/auth/login")
-    .send({
-      email: "admin@logitrack.com",
-      password: "Admin1234!"
-    });
+  const res = await request(app).post("/api/auth/login").send({
+    email: "admin@logitrack.com",
+    password: "Admin1234!",
+  });
 
   token = res.body.token;
 });
@@ -24,12 +22,10 @@ beforeAll(async () => {
 
 describe("TEST1 Autenticación de usuarios", () => {
   test("ESCN1 Inicio de sesión exitoso", async () => {
-    const response = await request(app)
-      .post("/api/auth/login")
-      .send({
-        email: "admin@logitrack.com",
-        password: "Admin1234!"
-      });
+    const response = await request(app).post("/api/auth/login").send({
+      email: "admin@logitrack.com",
+      password: "Admin1234!",
+    });
 
     expect(response.statusCode).toBe(200);
     expect(response.body.token).toBeDefined();
@@ -38,12 +34,10 @@ describe("TEST1 Autenticación de usuarios", () => {
 
 describe("TEST1 Autenticación de usuarios", () => {
   test("ESCN2 Inicio de sesión fallido con contraseña incorrecta", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({
-        email: "admin@logitrack.com",
-        password: "contraseña_incorrecta"
-      });
+    const res = await request(app).post("/api/auth/login").send({
+      email: "admin@logitrack.com",
+      password: "contraseña_incorrecta",
+    });
 
     expect(res.statusCode).toBe(401);
     expect(res.body.error).toBeDefined();
@@ -55,7 +49,6 @@ describe("TEST1 Autenticación de usuarios", () => {
 // ─────────────────────────────────────────
 
 describe("TEST2 - Registrar estado inicial del envío", () => {
-
   test("ESCN1 El envío se crea con estado inicial 'creado'", async () => {
     // 1. Crear envío
     const crear = await request(app)
@@ -64,7 +57,7 @@ describe("TEST2 - Registrar estado inicial del envío", () => {
       .send({
         remitente: "Juan",
         destinatario: "Pedro",
-        producto: "Zapatillas"
+        producto: "Zapatillas",
       });
 
     expect(crear.statusCode).toBe(201);
@@ -80,7 +73,6 @@ describe("TEST2 - Registrar estado inicial del envío", () => {
     expect(consultar.statusCode).toBe(200);
     expect(consultar.body.estado).toBe("creado");
   });
-
 });
 
 // ─────────────────────────────────────────
@@ -88,7 +80,6 @@ describe("TEST2 - Registrar estado inicial del envío", () => {
 // ─────────────────────────────────────────
 
 describe("TEST3 Crear envío", () => {
-
   test("ESCN1 – Registro exitoso", async () => {
     const res = await request(app)
       .post("/api/envios")
@@ -96,7 +87,7 @@ describe("TEST3 Crear envío", () => {
       .send({
         remitente: "Juan",
         destinatario: "Pedro",
-        producto: "Zapatillas"
+        producto: "Zapatillas",
       });
 
     expect(res.statusCode).toBe(201);
@@ -110,13 +101,12 @@ describe("TEST3 Crear envío", () => {
       .send({
         remitente: "",
         destinatario: "",
-        producto: ""
+        producto: "",
       });
 
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toBeDefined();
   });
-
 });
 
 // ─────────────────────────────────────────
@@ -124,7 +114,6 @@ describe("TEST3 Crear envío", () => {
 // ─────────────────────────────────────────
 
 describe("Búsqueda de envío por Tracking ID", () => {
-
   test("ESCN1 – Búsqueda exitosa", async () => {
     const crear = await request(app)
       .post("/api/envios")
@@ -132,7 +121,7 @@ describe("Búsqueda de envío por Tracking ID", () => {
       .send({
         remitente: "Juan",
         destinatario: "Pedro",
-        producto: "Zapatillas"
+        producto: "Zapatillas",
       });
 
     const trackingId = crear.body.trackingId;
@@ -160,7 +149,6 @@ describe("Búsqueda de envío por Tracking ID", () => {
 
     expect(buscar.statusCode).toBe(404);
   });
-
 });
 
 // ─────────────────────────────────────────
@@ -168,7 +156,6 @@ describe("Búsqueda de envío por Tracking ID", () => {
 // ─────────────────────────────────────────
 
 describe("TEST5 Visualizar información del envío", () => {
-
   test("ESCN1 – Visualización correcta de los datos del envío", async () => {
     // Crear envío con datos específicos
     const crear = await request(app)
@@ -177,7 +164,7 @@ describe("TEST5 Visualizar información del envío", () => {
       .send({
         remitente: "Alguien",
         destinatario: "Juan",
-        producto: "Sopa"
+        producto: "Sopa",
       });
 
     const trackingId = crear.body.trackingId;
@@ -199,7 +186,6 @@ describe("TEST5 Visualizar información del envío", () => {
     expect(consultar.body.fechaCreacion).toBeDefined();
     expect(consultar.body.fechaActualizacion).toBeDefined();
   });
-
 });
 
 // ─────────────────────────────────────────
@@ -207,15 +193,15 @@ describe("TEST5 Visualizar información del envío", () => {
 // ─────────────────────────────────────────
 
 describe("TEST6 Crear cuenta de usuario", () => {
-  
   test("ESCN1 Creación de cuenta exitosa", async () => {
+    const marcaTiempo = Date.now();
     const response = await request(app)
       .post("/api/auth/register")
       .send({
-        email: "usuario.nuevo@logitrack.com",
+        email: `usuario.nuevo.${marcaTiempo}@logitrack.com`,
         telefono: "+54 11 1234-5678",
-        nombreUsuario: "usuariounico123",
-        password: "Password123!"
+        nombreUsuario: `usuariounico${marcaTiempo}`,
+        password: "Password123!",
       });
 
     expect(response.statusCode).toBe(201);
@@ -224,14 +210,12 @@ describe("TEST6 Crear cuenta de usuario", () => {
   });
 
   test("ESCN2.1 Creación fallida - sin email", async () => {
-    const response = await request(app)
-      .post("/api/auth/register")
-      .send({
-        email: "",
-        telefono: "+54 11 1234-5678",
-        nombreUsuario: "usuario123",
-        password: "Password123!"
-      });
+    const response = await request(app).post("/api/auth/register").send({
+      email: "",
+      telefono: "+54 11 1234-5678",
+      nombreUsuario: "usuario123",
+      password: "Password123!",
+    });
 
     expect(response.statusCode).toBe(400);
     expect(response.body.error).toBeDefined();
@@ -239,42 +223,36 @@ describe("TEST6 Crear cuenta de usuario", () => {
   });
 
   test("ESCN2.2 Creación fallida - sin teléfono", async () => {
-    const response = await request(app)
-      .post("/api/auth/register")
-      .send({
-        email: "test@logitrack.com",
-        telefono: "",
-        nombreUsuario: "usuario123",
-        password: "Password123!"
-      });
+    const response = await request(app).post("/api/auth/register").send({
+      email: "test@logitrack.com",
+      telefono: "",
+      nombreUsuario: "usuario123",
+      password: "Password123!",
+    });
 
     expect(response.statusCode).toBe(400);
     expect(response.body.error).toBeDefined();
   });
 
   test("ESCN2.3 Creación fallida - sin nombreUsuario", async () => {
-    const response = await request(app)
-      .post("/api/auth/register")
-      .send({
-        email: "test@logitrack.com",
-        telefono: "+54 11 1234-5678",
-        nombreUsuario: "",
-        password: "Password123!"
-      });
+    const response = await request(app).post("/api/auth/register").send({
+      email: "test@logitrack.com",
+      telefono: "+54 11 1234-5678",
+      nombreUsuario: "",
+      password: "Password123!",
+    });
 
     expect(response.statusCode).toBe(400);
     expect(response.body.error).toBeDefined();
   });
 
   test("ESCN2.4 Creación fallida - sin password", async () => {
-    const response = await request(app)
-      .post("/api/auth/register")
-      .send({
-        email: "test@logitrack.com",
-        telefono: "+54 11 1234-5678",
-        nombreUsuario: "usuario123",
-        password: ""
-      });
+    const response = await request(app).post("/api/auth/register").send({
+      email: "test@logitrack.com",
+      telefono: "+54 11 1234-5678",
+      nombreUsuario: "usuario123",
+      password: "",
+    });
 
     expect(response.statusCode).toBe(400);
     expect(response.body.error).toBeDefined();
@@ -299,14 +277,12 @@ describe("TEST7 Modificación de roles de usuarios", () => {
       const email = `roles.${nuevoRol.toLowerCase()}.${marcaTiempo}@logitrack.com`;
       const nombreUsuario = `roles_${nuevoRol.toLowerCase()}_${marcaTiempo}`;
 
-      const registro = await request(app)
-        .post("/api/auth/register")
-        .send({
-          email,
-          telefono: "+54 11 5555-5555",
-          nombreUsuario,
-          password: "ClientePass123!"
-        });
+      const registro = await request(app).post("/api/auth/register").send({
+        email,
+        telefono: "+54 11 5555-5555",
+        nombreUsuario,
+        password: "ClientePass123!",
+      });
 
       expect(registro.statusCode).toBe(201);
 
@@ -317,7 +293,7 @@ describe("TEST7 Modificación de roles de usuarios", () => {
       expect(listaUsuarios.statusCode).toBe(200);
 
       const usuarioCreado = listaUsuarios.body.usuarios.find(
-        (usuario) => usuario.email === email
+        (usuario) => usuario.email === email,
       );
 
       expect(usuarioCreado).toBeDefined();
@@ -337,12 +313,12 @@ describe("TEST7 Modificación de roles de usuarios", () => {
       expect(verificacion.statusCode).toBe(200);
 
       const usuarioActualizado = verificacion.body.usuarios.find(
-        (usuario) => usuario.id === usuarioCreado.id
+        (usuario) => usuario.id === usuarioCreado.id,
       );
 
       expect(usuarioActualizado).toBeDefined();
       expect(usuarioActualizado.rol).toBe(nuevoRol);
-    }
+    },
   );
 });
 
@@ -366,7 +342,7 @@ describe("TEST8 Modificar datos del envío", () => {
         email,
         telefono: "+54 11 7777-7777",
         nombreUsuario: `operadorenvios${marcaTiempo}`,
-        password: "Operador123!"
+        password: "Operador123!",
       });
 
     expect(registro.statusCode).toBe(201);
@@ -376,7 +352,7 @@ describe("TEST8 Modificar datos del envío", () => {
       .set("Authorization", `Bearer ${supervisorToken}`);
 
     const usuarioCreado = listaUsuarios.body.usuarios.find(
-      (usuario) => usuario.email === email
+      (usuario) => usuario.email === email,
     );
 
     expect(usuarioCreado).toBeDefined();
@@ -388,12 +364,10 @@ describe("TEST8 Modificar datos del envío", () => {
 
     expect(cambioRol.statusCode).toBe(200);
 
-    const loginOperador = await request(app)
-      .post("/api/auth/login")
-      .send({
-        email,
-        password: "Operador123!"
-      });
+    const loginOperador = await request(app).post("/api/auth/login").send({
+      email,
+      password: "Operador123!",
+    });
 
     expect(loginOperador.statusCode).toBe(200);
     operadorToken = loginOperador.body.token;
@@ -406,7 +380,7 @@ describe("TEST8 Modificar datos del envío", () => {
       .send({
         remitente: "Depósito Central",
         destinatario: "Juan",
-        producto: "Notebook"
+        producto: "Notebook",
       });
 
     expect(crear.statusCode).toBe(201);
@@ -418,7 +392,7 @@ describe("TEST8 Modificar datos del envío", () => {
       .set("Authorization", `Bearer ${operadorToken}`)
       .send({
         destinatario: "Juan Pérez",
-        direccionEntrega: "Av. Siempre Viva 742"
+        direccionEntrega: "Av. Siempre Viva 742",
       });
 
     expect(editar.statusCode).toBe(200);
@@ -440,7 +414,7 @@ describe("TEST8 Modificar datos del envío", () => {
       .send({
         remitente: "Sucursal Norte",
         destinatario: "María",
-        producto: "Documentación"
+        producto: "Documentación",
       });
 
     expect(crear.statusCode).toBe(201);
@@ -450,7 +424,7 @@ describe("TEST8 Modificar datos del envío", () => {
       .set("Authorization", `Bearer ${operadorToken}`)
       .send({
         destinatario: "",
-        direccionEntrega: ""
+        direccionEntrega: "",
       });
 
     expect(editar.statusCode).toBe(400);
@@ -464,7 +438,7 @@ describe("TEST8 Modificar datos del envío", () => {
       .send({
         remitente: "Centro Logístico",
         destinatario: "Pedro",
-        producto: "Monitor"
+        producto: "Monitor",
       });
 
     expect(crear.statusCode).toBe(201);
@@ -486,7 +460,7 @@ describe("TEST8 Modificar datos del envío", () => {
       .set("Authorization", `Bearer ${operadorToken}`)
       .send({
         destinatario: "Pedro Gómez",
-        direccionEntrega: "Calle 123"
+        direccionEntrega: "Calle 123",
       });
 
     expect(editar.statusCode).toBe(400);
@@ -494,47 +468,44 @@ describe("TEST8 Modificar datos del envío", () => {
   });
 
   // ─────────────────────────────────────────
-// BUSCAR ENVÍO POR NOMBRE DE DESTINATARIO
-// ─────────────────────────────────────────
+  // BUSCAR ENVÍO POR NOMBRE DE DESTINATARIO
+  // ─────────────────────────────────────────
 
-describe("TEST10 Buscar envío por nombre de destinatario", () => {
+  describe("TEST10 Buscar envío por nombre de destinatario", () => {
+    beforeAll(async () => {
+      // Precondición: crear envío con destinatario "Casa Central"
+      await request(app)
+        .post("/api/envios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          remitente: "Depósito Central",
+          destinatario: "Casa Central",
+          producto: "Caja de insumos",
+        });
+    });
 
-  beforeAll(async () => {
-    // Precondición: crear envío con destinatario "Casa Central"
-    await request(app)
-      .post("/api/envios")
-      .set("Authorization", `Bearer ${token}`)
-      .send({
-        remitente: "Depósito Central",
-        destinatario: "Casa Central",
-        producto: "Caja de insumos"
-      });
+    test("ESCN1 Búsqueda exitosa - destinatario existente: Casa Central", async () => {
+      const res = await request(app)
+        .get("/api/envios/buscar/destinatario?nombre=Casa Central")
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.envios).toBeDefined();
+      expect(res.body.envios.length).toBeGreaterThan(0);
+      expect(
+        res.body.envios.some((e) =>
+          e.destinatario.toLowerCase().includes("casa central"),
+        ),
+      ).toBe(true);
+    });
+
+    test("ESCN2 Búsqueda fallida - destinatario inexistente: Solo Deportes", async () => {
+      const res = await request(app)
+        .get("/api/envios/buscar/destinatario?nombre=Solo Deportes")
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(res.statusCode).toBe(404);
+      expect(res.body.error).toBeDefined();
+    });
   });
-
-  test("ESCN1 Búsqueda exitosa - destinatario existente: Casa Central", async () => {
-    const res = await request(app)
-      .get("/api/envios/buscar/destinatario?nombre=Casa Central")
-      .set("Authorization", `Bearer ${token}`);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.envios).toBeDefined();
-    expect(res.body.envios.length).toBeGreaterThan(0);
-    expect(
-      res.body.envios.some(e =>
-        e.destinatario.toLowerCase().includes("casa central")
-      )
-    ).toBe(true);
-  });
-
-  test("ESCN2 Búsqueda fallida - destinatario inexistente: Solo Deportes", async () => {
-    const res = await request(app)
-      .get("/api/envios/buscar/destinatario?nombre=Solo Deportes")
-      .set("Authorization", `Bearer ${token}`);
-
-    expect(res.statusCode).toBe(404);
-    expect(res.body.error).toBeDefined();
-  });
-
 });
-});
-
