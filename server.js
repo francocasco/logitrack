@@ -358,6 +358,49 @@ app.get('/api/envios', requireAuth, async (req, res) => {
 });
 
 // GET /api/envios/:trackingId
+
+// GET /api/envios/buscar/destinatario
+/**
+ * @swagger
+ * /api/envios/buscar/destinatario:
+ *   get:
+ *     summary: Buscar envíos por nombre de destinatario
+ *     description: Devuelve todos los envíos que coincidan con el nombre del destinatario
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Envíos encontrados
+ *       400:
+ *         description: Nombre no proporcionado
+ *       404:
+ *         description: No se encontraron envíos
+ */
+app.get('/api/envios/buscar/destinatario', requireAuth, async (req, res) => {
+  const { nombre } = req.query;
+
+  if (!nombre || nombre.trim().length === 0) {
+    return res.status(400).json({ error: 'Ingresá un nombre para buscar.' });
+  }
+
+  try {
+    const envios = await db.buscarPorDestinatario(nombre.trim());
+
+    if (!envios.length) {
+      return res.status(404).json({ error: `No se encontraron envíos para el destinatario "${nombre}".` });
+    }
+
+    res.json({ envios });
+  } catch (err) {
+    console.error('Error al buscar por destinatario:', err.message);
+    res.status(500).json({ error: 'No se pudo realizar la búsqueda.' });
+  }
+});
+
 /**
  * @swagger
  * /api/envios/{trackingId}:
@@ -388,6 +431,8 @@ app.get('/api/envios/:trackingId', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'No se pudo consultar el envío.' });
   }
 });
+
+
 
 // PATCH /api/envios/:trackingId
 app.patch('/api/envios/:trackingId', requireAuth, async (req, res) => {

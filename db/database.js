@@ -340,6 +340,17 @@ async function actualizarRolUsuario(id, rol) {
   });
 }
 
+// ─── BUSCAR POR DESTINATARIO ──────────────────────────────────
+async function buscarPorDestinatario(nombre) {
+  const res = await db.execute({
+    sql: `SELECT * FROM envios 
+          WHERE LOWER(destinatario) LIKE LOWER(?) 
+          ORDER BY fechaCreacion DESC`,
+    args: [`%${nombre}%`]
+  });
+  return res.rows;
+}
+
 module.exports = {
   inicializar,
   login,
@@ -348,6 +359,7 @@ module.exports = {
   crearEnvio,
   listarEnvios,
   buscarPorTracking,
+  buscarPorDestinatario,
   actualizarEnvio,
   cambiarEstado,
   ESTADOS,

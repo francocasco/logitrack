@@ -465,6 +465,52 @@ describe("TEST8 Modificar datos del envío", () => {
   });
 
   // ─────────────────────────────────────────
+// BUSCAR ENVÍO POR NOMBRE DE DESTINATARIO
+// ─────────────────────────────────────────
+
+describe("TEST10 Buscar envío por nombre de destinatario", () => {
+
+  beforeAll(async () => {
+    // Precondición: crear envío con destinatario "Casa Central"
+    await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        remitente: "Depósito Central",
+        destinatario: "Casa Central",
+        producto: "Caja de insumos"
+      });
+  });
+
+  test("ESCN1 Búsqueda exitosa - destinatario existente: Casa Central", async () => {
+    const res = await request(app)
+      .get("/api/envios/buscar/destinatario?nombre=Casa Central")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.envios).toBeDefined();
+    expect(res.body.envios.length).toBeGreaterThan(0);
+    expect(
+      res.body.envios.some(e =>
+        e.destinatario.toLowerCase().includes("casa central")
+      )
+    ).toBe(true);
+  });
+
+  test("ESCN2 Búsqueda fallida - destinatario inexistente: Solo Deportes", async () => {
+    const res = await request(app)
+      .get("/api/envios/buscar/destinatario?nombre=Solo Deportes")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.statusCode).toBe(404);
+    expect(res.body.error).toBeDefined();
+  });
+
+});
+});
+
+
+  // ─────────────────────────────────────────
   // REGISTRAR DATOS DE USUARIO (Setup de cliente)
   // ─────────────────────────────────────────
 
