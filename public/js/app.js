@@ -371,6 +371,78 @@ async function buscarEnvio() {
   }
 }
 
+// ─── BUSCAR POR DESTINATARIO ──────────────────────────────────
+async function buscarPorDestinatario() {
+  const nombre = document
+    .getElementById("input-buscar-destinatario")
+    .value.trim();
+  const resultDiv = document.getElementById("resultado-busqueda-destinatario");
+
+  if (!nombre) {
+    resultDiv.innerHTML = `<div class="alert alert-error show">❌ Ingresá un nombre para buscar.</div>`;
+    return;
+  }
+
+  resultDiv.innerHTML = '<p style="color:var(--text-muted)">Buscando...</p>';
+
+  try {
+    const res = await fetchAuth(
+      `/api/envios/buscar/destinatario?nombre=${encodeURIComponent(nombre)}`,
+    );
+    const data = await res.json();
+
+    if (res.status === 401) {
+      window.location.href = "/login.html";
+      return;
+    }
+
+    if (!res.ok) {
+      resultDiv.innerHTML = `<div class="alert alert-error show">❌ ${data.error}</div>`;
+      return;
+    }
+
+    const { envios } = data;
+
+    resultDiv.innerHTML = `
+      <div style="margin-top:20px">
+        <p style="color:var(--text-muted); margin-bottom:12px">${envios.length} resultado${envios.length !== 1 ? "s" : ""} para "<strong>${escapeHtml(nombre)}</strong>"</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tracking ID</th>
+                <th>Destinatario</th>
+                <th>Producto</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${envios
+                .map(
+                  (e) => `
+                <tr>
+                  <td class="tracking-cell">${e.trackingId}</td>
+                  <td>${escapeHtml(e.destinatario)}</td>
+                  <td>${escapeHtml(e.producto)}</td>
+                  <td>${badgeEstado(e.estado)}</td>
+                  <td>
+                    <button class="btn btn-secondary btn-sm" onclick="verDetalle('${e.trackingId}')">Ver</button>
+                  </td>
+                </tr>
+              `,
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    resultDiv.innerHTML = `<div class="alert alert-error show">❌ ${err.message}</div>`;
+  }
+}
+
 // ─── VER DETALLE ──────────────────────────────────────────────
 async function verDetalle(trackingId) {
   navigate("page-detalle");
@@ -563,6 +635,12 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("input-buscar").addEventListener("keydown", (e) => {
     if (e.key === "Enter") buscarEnvio();
   });
+
+  document
+    .getElementById("input-buscar-destinatario")
+    .addEventListener("keydown", (e) => {
+      if (e.key === "Enter") buscarPorDestinatario();
+    });
 
   navigate("page-crear");
 });

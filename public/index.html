@@ -155,22 +155,41 @@
         <section class="page" id="page-buscar">
           <div class="page-header">
             <h2>Buscar envío</h2>
-            <p>Ingresá el Tracking ID para consultar el estado de un envío.</p>
+            <p>Buscá por Tracking ID o por nombre del destinatario.</p>
           </div>
 
-          <div class="search-bar">
-            <input
-              id="input-buscar"
-              type="text"
-              placeholder="Ej: AB-123456"
-              style="text-transform: uppercase"
-            />
-            <button class="btn btn-primary" onclick="buscarEnvio()">
-              🔍 Buscar
-            </button>
+          <!-- Búsqueda por Tracking ID (ya existía) -->
+          <div class="card" style="margin-bottom: 20px">
+            <h3 style="margin-bottom: 12px">Por Tracking ID</h3>
+            <div class="search-bar">
+              <input
+                id="input-buscar"
+                type="text"
+                placeholder="Ej: AB-123456"
+                style="text-transform: uppercase"
+              />
+              <button class="btn btn-primary" onclick="buscarEnvio()">
+                🔍 Buscar
+              </button>
+            </div>
+            <div id="resultado-busqueda"></div>
           </div>
 
-          <div id="resultado-busqueda"></div>
+          <!-- Búsqueda por destinatario (nueva) -->
+          <div class="card">
+            <h3 style="margin-bottom: 12px">Por nombre de destinatario</h3>
+            <div class="search-bar">
+              <input
+                id="input-buscar-destinatario"
+                type="text"
+                placeholder="Ej: Juan Pérez"
+              />
+              <button class="btn btn-primary" onclick="buscarPorDestinatario()">
+                🔍 Buscar
+              </button>
+            </div>
+            <div id="resultado-busqueda-destinatario"></div>
+          </div>
         </section>
 
         <!-- PÁGINA: Detalle -->
@@ -209,7 +228,7 @@
             </div>
           </div>
         </section>
-        
+
         <!-- PÁGINA: Setup de cliente -->
         <section class="page" id="page-setup">
           <div class="page-header">
