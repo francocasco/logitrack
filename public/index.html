@@ -1,186 +1,306 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LogiTrack — Sistema Logístico</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LogiTrack — Sistema Logístico</title>
-  <link rel="stylesheet" href="/css/style.css" />
-</head>
-
-<body>
-  <div class="app">
-
-    <!-- ── SIDEBAR ── -->
-    <aside class="sidebar">
-      <div class="sidebar-logo">
-        <div class="icon">📦</div>
-        <h1>LogiTrack</h1>
-        <p>MVP Logístico</p>
-      </div>
-
-      <ul class="nav">
-        <li>
-          <a href="#" data-page="page-crear">
-            <span class="nav-icon">✏️</span>
-            <span>Nuevo envío</span>
-          </a>
-        </li>
-        <li>
-          <a href="#" data-page="page-lista">
-            <span class="nav-icon">📋</span>
-            <span>Lista de envíos</span>
-          </a>
-        </li>
-        <li>
-          <a href="#" data-page="page-buscar">
-            <span class="nav-icon">🔍</span>
-            <span>Buscar</span>
-          </a>
-        </li>        
-        <li>
-        <a data-page="page-usuarios">
-        <span class="nav-icon">👥</span>
-        <span>Usuarios</span>
-        </a>
-        </li>
-
-      </ul>
-
-      <!-- Usuario y cerrar sesión -->
-      <div class="sidebar-footer">
-        <div class="usuario-info">
-          <span class="nav-icon">👤</span>
-          <span id="usuario-email" class="usuario-email">...</span>
-        </div>
-        <button class="btn-logout" onclick="cerrarSesion()">
-          <span>⎋</span>
-          <span>Cerrar sesión</span>
-        </button>
-      </div>
-    </aside>
-
-    <!-- ── MAIN ── -->
-    <main class="main">
-
-      <!-- PÁGINA: Crear envío -->
-      <section class="page" id="page-crear">
-        <div class="page-header">
-          <h2>Nuevo envío</h2>
-          <p>Completá los datos para generar un nuevo envío con tracking automático.</p>
+  <body>
+    <div class="app">
+      <!-- ── SIDEBAR ── -->
+      <aside class="sidebar">
+        <div class="sidebar-logo">
+          <div class="icon">📦</div>
+          <h1>LogiTrack</h1>
+          <p>MVP Logístico</p>
         </div>
 
-        <div id="alert-crear" class="alert"></div>
+        <ul class="nav">
+          <li>
+            <a href="#" data-page="page-crear">
+              <span class="nav-icon">✏️</span>
+              <span>Nuevo envío</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" data-page="page-lista">
+              <span class="nav-icon">📋</span>
+              <span>Lista de envíos</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" data-page="page-buscar">
+              <span class="nav-icon">🔍</span>
+              <span>Buscar</span>
+            </a>
+          </li>
+          <li>
+            <a data-page="page-usuarios">
+              <span class="nav-icon">👥</span>
+              <span>Usuarios</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" data-page="page-setup">
+              <span class="nav-icon">🛠️</span>
+              <span>Setup de cliente</span>
+            </a>
+          </li>
+        </ul>
 
-        <div class="card">
-          <form id="form-crear">
+        <!-- Usuario y cerrar sesión -->
+        <div class="sidebar-footer">
+          <div class="usuario-info">
+            <span class="nav-icon">👤</span>
+            <span id="usuario-email" class="usuario-email">...</span>
+          </div>
+          <button class="btn-logout" onclick="cerrarSesion()">
+            <span>⎋</span>
+            <span>Cerrar sesión</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- ── MAIN ── -->
+      <main class="main">
+        <!-- PÁGINA: Crear envío -->
+        <section class="page" id="page-crear">
+          <div class="page-header">
+            <h2>Nuevo envío</h2>
+            <p>
+              Completá los datos para generar un nuevo envío con tracking
+              automático.
+            </p>
+          </div>
+
+          <div id="alert-crear" class="alert"></div>
+
+          <div class="card">
+            <form id="form-crear">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="remitente">Remitente</label>
+                  <input
+                    id="remitente"
+                    type="text"
+                    placeholder="Nombre o empresa"
+                    required
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="destinatario">Destinatario</label>
+                  <input
+                    id="destinatario"
+                    type="text"
+                    placeholder="Nombre o empresa"
+                    required
+                  />
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="producto">Producto / Descripción</label>
+                <input
+                  id="producto"
+                  type="text"
+                  placeholder="Ej: Notebook Dell, Caja documentos, etc."
+                  required
+                />
+              </div>
+              <button id="btn-crear" class="btn btn-primary" type="submit">
+                ➕ Crear envío
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- PÁGINA: Lista -->
+        <section class="page" id="page-lista">
+          <div class="page-header">
+            <h2>Todos los envíos</h2>
+            <p>Historial completo de envíos registrados en el sistema.</p>
+          </div>
+
+          <div class="card">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tracking ID</th>
+                    <th>Remitente</th>
+                    <th>Destinatario</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-lista"></tbody>
+              </table>
+            </div>
+            <div
+              id="paginacion"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 14px 4px 0;
+                gap: 12px;
+                flex-wrap: wrap;
+              "
+            ></div>
+          </div>
+        </section>
+
+        <!-- PÁGINA: Buscar -->
+        <section class="page" id="page-buscar">
+          <div class="page-header">
+            <h2>Buscar envío</h2>
+            <p>Buscá por Tracking ID o por nombre del destinatario.</p>
+          </div>
+
+          <!-- Búsqueda por Tracking ID (ya existía) -->
+          <div class="card" style="margin-bottom: 20px">
+            <h3 style="margin-bottom: 12px">Por Tracking ID</h3>
+            <div class="search-bar">
+              <input
+                id="input-buscar"
+                type="text"
+                placeholder="Ej: AB-123456"
+                style="text-transform: uppercase"
+              />
+              <button class="btn btn-primary" onclick="buscarEnvio()">
+                🔍 Buscar
+              </button>
+            </div>
+            <div id="resultado-busqueda"></div>
+          </div>
+
+          <!-- Búsqueda por destinatario (nueva) -->
+          <div class="card">
+            <h3 style="margin-bottom: 12px">Por nombre de destinatario</h3>
+            <div class="search-bar">
+              <input
+                id="input-buscar-destinatario"
+                type="text"
+                placeholder="Ej: Juan Pérez"
+              />
+              <button class="btn btn-primary" onclick="buscarPorDestinatario()">
+                🔍 Buscar
+              </button>
+            </div>
+            <div id="resultado-busqueda-destinatario"></div>
+          </div>
+        </section>
+
+        <!-- PÁGINA: Detalle -->
+        <section class="page" id="page-detalle">
+          <div class="page-header">
+            <h2>Detalle del envío</h2>
+            <p>Información completa y estado actual del envío.</p>
+          </div>
+          <div id="detalle-container"></div>
+        </section>
+
+        <!-- PÁGINA: lista usuarios -->
+        <section class="page" id="page-usuarios">
+          <div class="page-header">
+            <h2>Usuarios</h2>
+            <p>Administración de cuentas y roles.</p>
+          </div>
+
+          <div id="alert-usuarios" class="alert"></div>
+
+          <div class="card">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Email</th>
+                    <th>Teléfono</th>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="usuarios-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PÁGINA: Setup de cliente -->
+        <section class="page" id="page-setup">
+          <div class="page-header">
+            <h2>Setup de cliente</h2>
+            <p>
+              Seleccioná un destinatario y registrá los datos de
+              entrega/despacho.
+            </p>
+          </div>
+
+          <div id="alert-setup" class="alert"></div>
+
+          <div class="card">
+            <div class="form-group">
+              <label for="setup-tracking"
+                >Seleccionar envío (Tracking ID)</label
+              >
+              <select id="setup-tracking">
+                <option value="">-- Seleccioná un envío --</option>
+              </select>
+            </div>
+
+            <div
+              id="setup-destinatario-info"
+              style="
+                display: none;
+                margin-bottom: 16px;
+                padding: 12px;
+                background: var(--surface2);
+                border-radius: 8px;
+              "
+            >
+              <strong>Destinatario actual:</strong>
+              <span id="setup-destinatario-actual"></span>
+            </div>
+
             <div class="form-row">
               <div class="form-group">
-                <label for="remitente">Remitente</label>
-                <input id="remitente" type="text" placeholder="Nombre o empresa" required />
+                <label for="setup-nombre">Nombre del destinatario</label>
+                <input
+                  id="setup-nombre"
+                  type="text"
+                  placeholder="Nombre completo o empresa"
+                />
               </div>
               <div class="form-group">
-                <label for="destinatario">Destinatario</label>
-                <input id="destinatario" type="text" placeholder="Nombre o empresa" required />
+                <label for="setup-direccion"
+                  >Ubicación de entrega/despacho</label
+                >
+                <input
+                  id="setup-direccion"
+                  type="text"
+                  placeholder="Dirección completa"
+                />
               </div>
             </div>
-            <div class="form-group">
-              <label for="producto">Producto / Descripción</label>
-              <input id="producto" type="text" placeholder="Ej: Notebook Dell, Caja documentos, etc." required />
-            </div>
-            <button id="btn-crear" class="btn btn-primary" type="submit">
-              ➕ Crear envío
+
+            <button
+              class="btn btn-primary"
+              id="btn-setup-guardar"
+              onclick="guardarSetupCliente()"
+              disabled
+            >
+              💾 Guardar
             </button>
-          </form>
-        </div>
-      </section>
-
-      <!-- PÁGINA: Lista -->
-      <section class="page" id="page-lista">
-        <div class="page-header">
-          <h2>Todos los envíos</h2>
-          <p>Historial completo de envíos registrados en el sistema.</p>
-        </div>
-
-        <div class="card">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tracking ID</th>
-                  <th>Remitente</th>
-                  <th>Destinatario</th>
-                  <th>Estado</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="tbody-lista"></tbody>
-            </table>
           </div>
-          <div id="paginacion"
-            style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px 0;gap:12px;flex-wrap:wrap;">
-          </div>
-        </div>
-      </section>
-
-      <!-- PÁGINA: Buscar -->
-      <section class="page" id="page-buscar">
-        <div class="page-header">
-          <h2>Buscar envío</h2>
-          <p>Ingresá el Tracking ID para consultar el estado de un envío.</p>
-        </div>
-
-        <div class="search-bar">
-          <input id="input-buscar" type="text" placeholder="Ej: AB-123456" style="text-transform:uppercase" />
-          <button class="btn btn-primary" onclick="buscarEnvio()">🔍 Buscar</button>
-        </div>
-
-        <div id="resultado-busqueda"></div>
-      </section>
-
-      <!-- PÁGINA: Detalle -->
-      <section class="page" id="page-detalle">
-        <div class="page-header">
-          <h2>Detalle del envío</h2>
-          <p>Información completa y estado actual del envío.</p>
-        </div>
-        <div id="detalle-container"></div>
-      </section>
-
-      <!-- PÁGINA: lista usuarios -->
-       <section class="page" id="page-usuarios">
-  <div class="page-header">
-    <h2>Usuarios</h2>
-    <p>Administración de cuentas y roles.</p>
-  </div>
-
-  <div id="alert-usuarios" class="alert"></div>
-
-  <div class="card">
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Email</th>
-            <th>Teléfono</th>
-            <th>Usuario</th>
-            <th>Rol</th>
-            <th>Acción</th>
-          </tr>
-        </thead>
-        <tbody id="usuarios-tbody"></tbody>
-      </table>
+        </section>
+      </main>
     </div>
-  </div>
-</section>
 
-    </main>
-  </div>
-
-  <!-- auth.js SIEMPRE primero: verifica sesión antes de cargar la app -->
-  <script src="/js/auth.js"></script>
-  <script src="/js/app.js"></script>
-</body>
-
+    <!-- auth.js SIEMPRE primero: verifica sesión antes de cargar la app -->
+    <script src="/js/auth.js"></script>
+    <script src="/js/app.js"></script>
+  </body>
 </html>

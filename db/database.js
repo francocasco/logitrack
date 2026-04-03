@@ -17,6 +17,29 @@ const ESTADOS      = ['creado', 'en tránsito', 'en sucursal', 'entregado'];
 // ─── INICIALIZACIÓN ───────────────────────────────────────────
 async function inicializar() {
   // Crear tablas si no existen
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS historial_envios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trackingId TEXT NOT NULL,
+      remitente TEXT NOT NULL,
+      destinatario TEXT NOT NULL,
+      producto TEXT NOT NULL,
+      direccionEntrega TEXT,
+      estadoFinal TEXT NOT NULL,
+      fechaCreacion TEXT NOT NULL,
+      fechaEntrega TEXT NOT NULL
+    )
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS log_estructuracion (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fechaUltima TEXT NOT NULL,
+      registrosProcessados INTEGER NOT NULL
+    )
+  `);
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS envios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,6 +91,20 @@ async function inicializar() {
       usuarioId INTEGER NOT NULL,
       creadaEn TEXT NOT NULL,
       FOREIGN KEY (usuarioId) REFERENCES usuarios(id)
+    )
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS metricas_ia (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fechaEjecucion TEXT NOT NULL,
+      modelo TEXT NOT NULL,
+      r2Score REAL NOT NULL,
+      mae REAL NOT NULL,
+      rmse REAL NOT NULL,
+      cvScore TEXT NOT NULL,
+      registrosUsados INTEGER NOT NULL,
+      rutaDataset TEXT NOT NULL
     )
   `);
 
@@ -349,6 +386,157 @@ async function actualizarRolUsuario(id, rol) {
   });
 }
 
+// ─── BUSCAR POR DESTINATARIO ──────────────────────────────────
+async function buscarPorDestinatario(nombre) {
+  const res = await db.execute({
+    sql: `SELECT * FROM envios 
+          WHERE LOWER(destinatario) LIKE LOWER(?) 
+          ORDER BY fechaCreacion DESC`,
+    args: [`%${nombre}%`]
+  });
+  return res.rows;
+}
+
+// ─── HISTORIAL DE ENVÍOS ──────────────────────────────────────
+async function registrarHistorial(envio) {
+  const ahora = new Date().toISOString();
+
+  const existe = await db.execute({
+    sql: 'SELECT id FROM historial_envios WHERE trackingId = ?',
+    args: [envio.trackingId]
+  });
+
+  if (existe.rows.length > 0) return;
+
+  await db.execute({
+    sql: `INSERT INTO historial_envios (
+            trackingId, remitente, destinatario, producto,
+            direccionEntrega, estadoFinal, fechaCreacion, fechaEntrega
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      envio.trackingId,
+      envio.remitente,
+      envio.destinatario,
+      envio.producto,
+      envio.direccionEntrega || '',
+      envio.estado,
+      envio.fechaCreacion,
+      ahora
+    ]
+  });
+}
+
+async function obtenerHistorial() {
+  const res = await db.execute(
+    'SELECT * FROM historial_envios ORDER BY fechaEntrega DESC'
+  );
+  return res.rows;
+}
+
+// ─── DATASET DE ENTRENAMIENTO ─────────────────────────────────────
+async function estructurarDataset() {
+  try {
+    // Verificar si ya se estructuró hace menos de 10 días
+    const resLog = await db.execute('SELECT * FROM log_estructuracion ORDER BY fechaUltima DESC LIMIT 1');
+    if (resLog.rows.length > 0) {
+      const ultimaEstructuracion = new Date(resLog.rows[0].fechaUltima);
+      const ahora = new Date();
+      const diasTranscurridos = (ahora - ultimaEstructuracion) / (1000 * 60 * 60 * 24);
+
+      if (diasTranscurridos < 10) {
+        return {
+          ok: false,
+          mensaje: `La última estructuración fue hace ${Math.floor(diasTranscurridos)} días. Espera ${Math.ceil(10 - diasTranscurridos)} días más.`
+        };
+      }
+    }
+
+    // Obtener datos del historial
+    const resHistorial = await db.execute('SELECT * FROM historial_envios ORDER BY fechaCreacion ASC');
+    const envios = resHistorial.rows;
+
+    if (envios.length === 0) {
+      return { ok: false, mensaje: 'No hay datos disponibles para estructurar.' };
+    }
+
+    // Procesar datos para ML
+    const csvHeaders = ['dias_entrega', 'len_direccion', 'len_producto', 'hora_creacion', 'dia_semana'];
+    const csvRows = [];
+
+    envios.forEach(envio => {
+      const fechaCreacion = new Date(envio.fechaCreacion);
+      const fechaEntrega = new Date(envio.fechaEntrega);
+
+      // Calcular días de entrega
+      const diasEntrega = Math.ceil((fechaEntrega - fechaCreacion) / (1000 * 60 * 60 * 24));
+
+      // Características
+      const lenDireccion = envio.direccionEntrega ? envio.direccionEntrega.length : 0;
+      const lenProducto = envio.producto ? envio.producto.length : 0;
+      const horaCreacion = fechaCreacion.getHours();
+      const diaSemanacreacion = fechaCreacion.getDay();
+
+      csvRows.push([diasEntrega, lenDireccion, lenProducto, horaCreacion, diaSemanacreacion].join(','));
+    });
+
+    const csvContent = [csvHeaders.join(','), ...csvRows].join('\n');
+
+    // Registrar en log
+    const ahora = new Date().toISOString();
+    await db.execute({
+      sql: 'INSERT INTO log_estructuracion (fechaUltima, registrosProcessados) VALUES (?, ?)',
+      args: [ahora, envios.length]
+    });
+
+    return {
+      ok: true,
+      csvContent,
+      registrosProcessados: envios.length,
+      mensaje: `Dataset estructurado con ${envios.length} registros.`
+    };
+  } catch (error) {
+    throw new Error(`Error al estructurar dataset: ${error.message}`);
+  }
+}
+
+// ─── LIMPIAR DATOS DE PRUEBA ───────────────────────────────────────
+async function limpiarHistorialYLog() {
+  try {
+    await db.execute('DELETE FROM historial_envios');
+    await db.execute('DELETE FROM log_estructuracion');
+  } catch (error) {
+    console.error('Error al limpiar datos:', error.message);
+  }
+}
+
+// ─── MÉTRICAS DE IA ─────────────────────────────────────────────────
+async function guardarMetricasIA(metricas) {
+  const fechaEjecucion = new Date().toISOString();
+
+  await db.execute({
+    sql: `INSERT INTO metricas_ia
+          (fechaEjecucion, modelo, r2Score, mae, rmse, cvScore, registrosUsados, rutaDataset)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      fechaEjecucion,
+      metricas.modelo || 'RandomForestRegressor',
+      metricas.r2Score,
+      metricas.mae,
+      metricas.rmse,
+      metricas.cvScore,
+      metricas.registrosUsados,
+      metricas.rutaDataset || 'datasets/training_data.csv'
+    ]
+  });
+}
+
+async function obtenerMetricasIA() {
+  const res = await db.execute(
+    'SELECT * FROM metricas_ia ORDER BY fechaEjecucion DESC LIMIT 10'
+  );
+  return res.rows;
+}
+
 module.exports = {
   inicializar,
   login,
@@ -357,10 +545,17 @@ module.exports = {
   crearEnvio,
   listarEnvios,
   buscarPorTracking,
+  buscarPorDestinatario,
   actualizarEnvio,
   cambiarEstado,
   ESTADOS,
   crearUsuario,
   listarUsuarios,
-  actualizarRolUsuario
+  actualizarRolUsuario,
+  registrarHistorial,
+  obtenerHistorial,
+  estructurarDataset,
+  limpiarHistorialYLog,
+  guardarMetricasIA,
+  obtenerMetricasIA
 };

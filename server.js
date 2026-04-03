@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
+const { execFile } = require('child_process');
 const db = require('./db/database');
 
 //Swagger
@@ -358,6 +360,49 @@ app.get('/api/envios', requireAuth, async (req, res) => {
 });
 
 // GET /api/envios/:trackingId
+
+// GET /api/envios/buscar/destinatario
+/**
+ * @swagger
+ * /api/envios/buscar/destinatario:
+ *   get:
+ *     summary: Buscar envíos por nombre de destinatario
+ *     description: Devuelve todos los envíos que coincidan con el nombre del destinatario
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Envíos encontrados
+ *       400:
+ *         description: Nombre no proporcionado
+ *       404:
+ *         description: No se encontraron envíos
+ */
+app.get('/api/envios/buscar/destinatario', requireAuth, async (req, res) => {
+  const { nombre } = req.query;
+
+  if (!nombre || nombre.trim().length === 0) {
+    return res.status(400).json({ error: 'Ingresá un nombre para buscar.' });
+  }
+
+  try {
+    const envios = await db.buscarPorDestinatario(nombre.trim());
+
+    if (!envios.length) {
+      return res.status(404).json({ error: `No se encontraron envíos para el destinatario "${nombre}".` });
+    }
+
+    res.json({ envios });
+  } catch (err) {
+    console.error('Error al buscar por destinatario:', err.message);
+    res.status(500).json({ error: 'No se pudo realizar la búsqueda.' });
+  }
+});
+
 /**
  * @swagger
  * /api/envios/{trackingId}:
@@ -388,6 +433,8 @@ app.get('/api/envios/:trackingId', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'No se pudo consultar el envío.' });
   }
 });
+
+
 
 // PATCH /api/envios/:trackingId
 app.patch('/api/envios/:trackingId', requireAuth, async (req, res) => {
@@ -453,10 +500,181 @@ app.patch('/api/envios/:trackingId/estado', requireAuth, async (req, res) => {
     if (resultado.error) {
       return res.status(400).json({ error: resultado.error });
     }
+
+    // Si el nuevo estado es "entregado", registrar en historial
+    if (resultado.nuevoEstado === 'entregado') {
+      const envio = await db.buscarPorTracking(req.params.trackingId.toUpperCase());
+      await db.registrarHistorial(envio);
+    }
+
     res.json({ mensaje: `Estado actualizado a "${resultado.nuevoEstado}".`, ...resultado });
   } catch (err) {
     console.error('Error al cambiar estado:', err.message);
     res.status(500).json({ error: 'No se pudo actualizar el estado del envío.' });
+  }
+});
+
+// GET /api/historial
+app.get('/api/historial', requireAuth, async (req, res) => {
+  if (!['Operador', 'Supervisor'].includes(req.usuario.rol)) {
+    return res.status(403).json({ error: 'No tenés permisos para ver el historial.' });
+  }
+  try {
+    const historial = await db.obtenerHistorial();
+    res.json({ historial });
+  } catch (err) {
+    console.error('Error al obtener historial:', err.message);
+    res.status(500).json({ error: 'No se pudo obtener el historial.' });
+  }
+});
+
+// POST /api/dataset/estructurar
+/**
+ * @swagger
+ * /api/dataset/estructurar:
+ *   post:
+ *     summary: Estructurar dataset de entrenamiento
+ *     description: Genera un archivo CSV con datos históricos formateados para ML (solo Supervisor)
+ *     responses:
+ *       200:
+ *         description: Dataset estructurado correctamente
+ *       400:
+ *         description: No es posible estructurar aún o sin datos
+ *       403:
+ *         description: Sin permisos
+ *       500:
+ *         description: Error al procesar
+ */
+app.post('/api/dataset/estructurar', requireAuth, async (req, res) => {
+  if (req.usuario.rol !== 'Supervisor') {
+    return res.status(403).json({ error: 'No tenés permisos para estructurar el dataset.' });
+  }
+
+  try {
+    const resultado = await db.estructurarDataset();
+
+    if (!resultado.ok) {
+      return res.status(400).json({ error: resultado.mensaje });
+    }
+
+    // Crear carpeta datasets si no existe
+    const datasetsDir = path.join(__dirname, 'datasets');
+    if (!fs.existsSync(datasetsDir)) {
+      fs.mkdirSync(datasetsDir, { recursive: true });
+    }
+
+    // Guardar CSV
+    const csvPath = path.join(datasetsDir, 'training_data.csv');
+    fs.writeFileSync(csvPath, resultado.csvContent, 'utf-8');
+
+    res.json({
+      mensaje: resultado.mensaje,
+      registrosProcessados: resultado.registrosProcessados,
+      rutaArchivo: csvPath
+    });
+  } catch (err) {
+    console.error('Error al estructurar dataset:', err.message);
+    res.status(500).json({ error: 'No se pudo estructurar el dataset.' });
+  }
+});
+
+// POST /api/ia/ejecutar
+/**
+ * @swagger
+ * /api/ia/ejecutar:
+ *   post:
+ *     summary: Ejecutar modelo de IA
+ *     description: Entrena un modelo de ML con el dataset de entrenamiento y genera métricas (solo Supervisor)
+ *     responses:
+ *       200:
+ *         description: IA entrenada exitosamente
+ *       400:
+ *         description: No hay dataset disponible
+ *       403:
+ *         description: Sin permisos
+ *       500:
+ *         description: Error al ejecutar IA
+ */
+app.post('/api/ia/ejecutar', requireAuth, async (req, res) => {
+  if (req.usuario.rol !== 'Supervisor') {
+    return res.status(403).json({ error: 'No tenés permisos para ejecutar la IA.' });
+  }
+
+  try {
+    // Verificar que el dataset existe
+    const csvPath = path.join(__dirname, 'datasets', 'training_data.csv');
+    if (!fs.existsSync(csvPath)) {
+      return res.status(400).json({ error: 'No existe dataset de entrenamiento. Genera uno primero.' });
+    }
+
+    // Ejecutar script Python
+    const pythonScript = path.join(__dirname, 'ml', 'train_model.py');
+
+    return new Promise((resolve) => {
+      execFile('python', [pythonScript, csvPath], { timeout: 30000 }, async (error, stdout, stderr) => {
+        try {
+          if (error && error.code !== 0) {
+            console.error('Error Python:', stderr);
+            return resolve(res.status(500).json({ error: `Error al ejecutar IA: ${stderr}` }));
+          }
+
+          // Parsear resultado JSON del script Python
+          const resultado = JSON.parse(stdout);
+
+          if (!resultado.ok) {
+            return resolve(res.status(400).json({ error: resultado.error }));
+          }
+
+          // Guardar métricas en BD
+          await db.guardarMetricasIA(resultado);
+
+          return resolve(res.json({
+            mensaje: 'IA entrenada exitosamente',
+            metricas: {
+              r2Score: resultado.r2Score,
+              mae: resultado.mae,
+              rmse: resultado.rmse,
+              cvScore: resultado.cvScore,
+              registrosUsados: resultado.registrosUsados,
+              modelo: resultado.modelo
+            }
+          }));
+        } catch (parseError) {
+          console.error('Error parseando resultado Python:', parseError.message);
+          return resolve(res.status(500).json({ error: 'Error al procesar respuesta de IA.' }));
+        }
+      });
+    });
+  } catch (err) {
+    console.error('Error al ejecutar IA:', err.message);
+    res.status(500).json({ error: 'No se pudo ejecutar la IA.' });
+  }
+});
+
+// GET /api/metricas
+/**
+ * @swagger
+ * /api/metricas:
+ *   get:
+ *     summary: Obtener métricas de IA
+ *     description: Devuelve las últimas métricas generadas por la IA (solo Supervisor)
+ *     responses:
+ *       200:
+ *         description: Métricas obtenidas correctamente
+ *       403:
+ *         description: Sin permisos
+ */
+app.get('/api/metricas', requireAuth, async (req, res) => {
+  if (req.usuario.rol !== 'Supervisor') {
+    return res.status(403).json({ error: 'No tenés permisos para ver las métricas.' });
+  }
+
+  try {
+    const metricas = await db.obtenerMetricasIA();
+    res.json({ metricas });
+  } catch (err) {
+    console.error('Error al obtener métricas:', err.message);
+    res.status(500).json({ error: 'No se pudieron obtener las métricas.' });
   }
 });
 

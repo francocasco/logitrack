@@ -2,19 +2,13 @@ const request = require("supertest");
 const app = require("../server");
 const db = require("../db/database");
 
-let token; // lo vamos a usar en todos los tests protegidos
+let token;
 
 beforeAll(async () => {
   await db.inicializar();
-
-  // Login para obtener token válido
   const res = await request(app)
     .post("/api/auth/login")
-    .send({
-      email: "admin@logitrack.com",
-      password: "Admin1234!"
-    });
-
+    .send({ email: "admin@logitrack.com", password: "Admin1234!" });
   token = res.body.token;
 });
 
@@ -26,11 +20,7 @@ describe("TEST1 Autenticación de usuarios", () => {
   test("ESCN1 Inicio de sesión exitoso", async () => {
     const response = await request(app)
       .post("/api/auth/login")
-      .send({
-        email: "admin@logitrack.com",
-        password: "Admin1234!"
-      });
-
+      .send({ email: "admin@logitrack.com", password: "Admin1234!" });
     expect(response.statusCode).toBe(200);
     expect(response.body.token).toBeDefined();
   });
@@ -38,13 +28,10 @@ describe("TEST1 Autenticación de usuarios", () => {
 
 describe("TEST1 Autenticación de usuarios", () => {
   test("ESCN2 Inicio de sesión fallido con contraseña incorrecta", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({
-        email: "admin@logitrack.com",
-        password: "contraseña_incorrecta"
-      });
-
+    const res = await request(app).post("/api/auth/login").send({
+      email: "admin@logitrack.com",
+      password: "contraseña_incorrecta",
+    });
     expect(res.statusCode).toBe(401);
     expect(res.body.error).toBeDefined();
   });
@@ -55,32 +42,24 @@ describe("TEST1 Autenticación de usuarios", () => {
 // ─────────────────────────────────────────
 
 describe("TEST2 - Registrar estado inicial del envío", () => {
-
   test("ESCN1 El envío se crea con estado inicial 'creado'", async () => {
-    // 1. Crear envío
     const crear = await request(app)
       .post("/api/envios")
       .set("Authorization", `Bearer ${token}`)
       .send({
         remitente: "Juan",
         destinatario: "Pedro",
-        producto: "Zapatillas"
+        producto: "Zapatillas",
       });
-
     expect(crear.statusCode).toBe(201);
     expect(crear.body.trackingId).toBeDefined();
-
     const trackingId = crear.body.trackingId;
-
-    // 2. Consultar envío recién creado
     const consultar = await request(app)
       .get(`/api/envios/${trackingId}`)
       .set("Authorization", `Bearer ${token}`);
-
     expect(consultar.statusCode).toBe(200);
     expect(consultar.body.estado).toBe("creado");
   });
-
 });
 
 // ─────────────────────────────────────────
@@ -88,7 +67,6 @@ describe("TEST2 - Registrar estado inicial del envío", () => {
 // ─────────────────────────────────────────
 
 describe("TEST3 Crear envío", () => {
-
   test("ESCN1 – Registro exitoso", async () => {
     const res = await request(app)
       .post("/api/envios")
@@ -96,9 +74,8 @@ describe("TEST3 Crear envío", () => {
       .send({
         remitente: "Juan",
         destinatario: "Pedro",
-        producto: "Zapatillas"
+        producto: "Zapatillas",
       });
-
     expect(res.statusCode).toBe(201);
     expect(res.body.trackingId).toBeDefined();
   });
@@ -107,16 +84,10 @@ describe("TEST3 Crear envío", () => {
     const res = await request(app)
       .post("/api/envios")
       .set("Authorization", `Bearer ${token}`)
-      .send({
-        remitente: "",
-        destinatario: "",
-        producto: ""
-      });
-
+      .send({ remitente: "", destinatario: "", producto: "" });
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toBeDefined();
   });
-
 });
 
 // ─────────────────────────────────────────
@@ -124,7 +95,6 @@ describe("TEST3 Crear envío", () => {
 // ─────────────────────────────────────────
 
 describe("Búsqueda de envío por Tracking ID", () => {
-
   test("ESCN1 – Búsqueda exitosa", async () => {
     const crear = await request(app)
       .post("/api/envios")
@@ -132,35 +102,29 @@ describe("Búsqueda de envío por Tracking ID", () => {
       .send({
         remitente: "Juan",
         destinatario: "Pedro",
-        producto: "Zapatillas"
+        producto: "Zapatillas",
       });
-
     const trackingId = crear.body.trackingId;
-
     const buscar = await request(app)
       .get(`/api/envios/${trackingId}`)
       .set("Authorization", `Bearer ${token}`);
-
     expect(buscar.statusCode).toBe(200);
     expect(buscar.body.trackingId).toMatch(/^[A-Z]{2}-\d{6}$/);
   });
 
   test("ESCN2 – Búsqueda fallida por tracking ID inválido", async () => {
     const buscar = await request(app)
-      .get("/api/envios/INVALIDO123") // formato incorrecto
+      .get("/api/envios/INVALIDO123")
       .set("Authorization", `Bearer ${token}`);
-
     expect(buscar.statusCode).toBe(404);
   });
 
   test("ESCN3 – Búsqueda fallida por tracking ID inexistente", async () => {
     const buscar = await request(app)
-      .get("/api/envios/AB-000000") // formato válido, pero no existe
+      .get("/api/envios/AB-000000")
       .set("Authorization", `Bearer ${token}`);
-
     expect(buscar.statusCode).toBe(404);
   });
-
 });
 
 // ─────────────────────────────────────────
@@ -168,38 +132,23 @@ describe("Búsqueda de envío por Tracking ID", () => {
 // ─────────────────────────────────────────
 
 describe("TEST5 Visualizar información del envío", () => {
-
   test("ESCN1 – Visualización correcta de los datos del envío", async () => {
-    // Crear envío con datos específicos
     const crear = await request(app)
       .post("/api/envios")
       .set("Authorization", `Bearer ${token}`)
-      .send({
-        remitente: "Alguien",
-        destinatario: "Juan",
-        producto: "Sopa"
-      });
-
+      .send({ remitente: "Alguien", destinatario: "Juan", producto: "Sopa" });
     const trackingId = crear.body.trackingId;
-
-    // Consultar envío
     const consultar = await request(app)
       .get(`/api/envios/${trackingId}`)
       .set("Authorization", `Bearer ${token}`);
-
     expect(consultar.statusCode).toBe(200);
-
-    // Validar visualización (equivalente a validar datos)
     expect(consultar.body.remitente).toBe("Alguien");
     expect(consultar.body.destinatario).toBe("Juan");
     expect(consultar.body.producto).toBe("Sopa");
-
-    // Validar que existan los demás campos necesarios para la pantalla
     expect(consultar.body.estado).toBeDefined();
     expect(consultar.body.fechaCreacion).toBeDefined();
     expect(consultar.body.fechaActualizacion).toBeDefined();
   });
-
 });
 
 // ─────────────────────────────────────────
@@ -207,75 +156,62 @@ describe("TEST5 Visualizar información del envío", () => {
 // ─────────────────────────────────────────
 
 describe("TEST6 Crear cuenta de usuario", () => {
-  
   test("ESCN1 Creación de cuenta exitosa", async () => {
+    const marcaTiempo = Date.now();
     const response = await request(app)
       .post("/api/auth/register")
       .send({
-        email: "usuario.nuevo@logitrack.com",
+        email: `usuario.nuevo.${marcaTiempo}@logitrack.com`,
         telefono: "+54 11 1234-5678",
-        nombreUsuario: "usuariounico123",
-        password: "Password123!"
+        nombreUsuario: `usuariounico${marcaTiempo}`,
+        password: "Password123!",
       });
-
     expect(response.statusCode).toBe(201);
     expect(response.body.mensaje).toBeDefined();
     expect(response.body.mensaje).toContain("Cuenta creada");
   });
 
   test("ESCN2.1 Creación fallida - sin email", async () => {
-    const response = await request(app)
-      .post("/api/auth/register")
-      .send({
-        email: "",
-        telefono: "+54 11 1234-5678",
-        nombreUsuario: "usuario123",
-        password: "Password123!"
-      });
-
+    const response = await request(app).post("/api/auth/register").send({
+      email: "",
+      telefono: "+54 11 1234-5678",
+      nombreUsuario: "usuario123",
+      password: "Password123!",
+    });
     expect(response.statusCode).toBe(400);
     expect(response.body.error).toBeDefined();
     expect(response.body.error).toContain("obligatorios");
   });
 
   test("ESCN2.2 Creación fallida - sin teléfono", async () => {
-    const response = await request(app)
-      .post("/api/auth/register")
-      .send({
-        email: "test@logitrack.com",
-        telefono: "",
-        nombreUsuario: "usuario123",
-        password: "Password123!"
-      });
-
+    const response = await request(app).post("/api/auth/register").send({
+      email: "test@logitrack.com",
+      telefono: "",
+      nombreUsuario: "usuario123",
+      password: "Password123!",
+    });
     expect(response.statusCode).toBe(400);
     expect(response.body.error).toBeDefined();
   });
 
   test("ESCN2.3 Creación fallida - sin nombreUsuario", async () => {
-    const response = await request(app)
-      .post("/api/auth/register")
-      .send({
-        email: "test@logitrack.com",
-        telefono: "+54 11 1234-5678",
-        nombreUsuario: "",
-        password: "Password123!"
-      });
-
+    const response = await request(app).post("/api/auth/register").send({
+      email: "test@logitrack.com",
+      telefono: "+54 11 1234-5678",
+      nombreUsuario: "",
+      password: "Password123!",
+    });
     expect(response.statusCode).toBe(400);
     expect(response.body.error).toBeDefined();
   });
 
   test("ESCN2.4 Creación fallida - sin password", async () => {
-    const response = await request(app)
-      .post("/api/auth/register")
-      .send({
-        email: "test@logitrack.com",
-        telefono: "+54 11 1234-5678",
-        nombreUsuario: "usuario123",
-        password: ""
-      });
-
+    const response = await request(app).post("/api/auth/register").send({
+      email: "test@logitrack.com",
+      telefono: "+54 11 1234-5678",
+      nombreUsuario: "usuario123",
+      password: "",
+    });
     expect(response.statusCode).toBe(400);
     expect(response.body.error).toBeDefined();
   });
@@ -298,51 +234,37 @@ describe("TEST7 Modificación de roles de usuarios", () => {
       const marcaTiempo = Date.now();
       const email = `roles.${nuevoRol.toLowerCase()}.${marcaTiempo}@logitrack.com`;
       const nombreUsuario = `roles_${nuevoRol.toLowerCase()}_${marcaTiempo}`;
-
-      const registro = await request(app)
-        .post("/api/auth/register")
-        .send({
-          email,
-          telefono: "+54 11 5555-5555",
-          nombreUsuario,
-          password: "ClientePass123!"
-        });
-
+      const registro = await request(app).post("/api/auth/register").send({
+        email,
+        telefono: "+54 11 5555-5555",
+        nombreUsuario,
+        password: "ClientePass123!",
+      });
       expect(registro.statusCode).toBe(201);
-
       const listaUsuarios = await request(app)
         .get("/api/usuarios")
         .set("Authorization", `Bearer ${supervisorToken}`);
-
       expect(listaUsuarios.statusCode).toBe(200);
-
       const usuarioCreado = listaUsuarios.body.usuarios.find(
-        (usuario) => usuario.email === email
+        (u) => u.email === email,
       );
-
       expect(usuarioCreado).toBeDefined();
-
       const cambioRol = await request(app)
         .patch(`/api/usuarios/${usuarioCreado.id}/rol`)
         .set("Authorization", `Bearer ${supervisorToken}`)
         .send({ rol: nuevoRol });
-
       expect(cambioRol.statusCode).toBe(200);
       expect(cambioRol.body.mensaje).toContain("Rol actualizado");
-
       const verificacion = await request(app)
         .get("/api/usuarios")
         .set("Authorization", `Bearer ${supervisorToken}`);
-
       expect(verificacion.statusCode).toBe(200);
-
       const usuarioActualizado = verificacion.body.usuarios.find(
-        (usuario) => usuario.id === usuarioCreado.id
+        (u) => u.id === usuarioCreado.id,
       );
-
       expect(usuarioActualizado).toBeDefined();
       expect(usuarioActualizado.rol).toBe(nuevoRol);
-    }
+    },
   );
 });
 
@@ -356,45 +278,32 @@ describe("TEST8 Modificar datos del envío", () => {
 
   beforeAll(async () => {
     supervisorToken = token;
-
     const marcaTiempo = Date.now();
     const email = `operador.envios.${marcaTiempo}@logitrack.com`;
-
     const registro = await request(app)
       .post("/api/auth/register")
       .send({
         email,
         telefono: "+54 11 7777-7777",
         nombreUsuario: `operadorenvios${marcaTiempo}`,
-        password: "Operador123!"
+        password: "Operador123!",
       });
-
     expect(registro.statusCode).toBe(201);
-
     const listaUsuarios = await request(app)
       .get("/api/usuarios")
       .set("Authorization", `Bearer ${supervisorToken}`);
-
     const usuarioCreado = listaUsuarios.body.usuarios.find(
-      (usuario) => usuario.email === email
+      (u) => u.email === email,
     );
-
     expect(usuarioCreado).toBeDefined();
-
     const cambioRol = await request(app)
       .patch(`/api/usuarios/${usuarioCreado.id}/rol`)
       .set("Authorization", `Bearer ${supervisorToken}`)
       .send({ rol: "Operador" });
-
     expect(cambioRol.statusCode).toBe(200);
-
     const loginOperador = await request(app)
       .post("/api/auth/login")
-      .send({
-        email,
-        password: "Operador123!"
-      });
-
+      .send({ email, password: "Operador123!" });
     expect(loginOperador.statusCode).toBe(200);
     operadorToken = loginOperador.body.token;
   });
@@ -406,28 +315,22 @@ describe("TEST8 Modificar datos del envío", () => {
       .send({
         remitente: "Depósito Central",
         destinatario: "Juan",
-        producto: "Notebook"
+        producto: "Notebook",
       });
-
     expect(crear.statusCode).toBe(201);
-
     const trackingId = crear.body.trackingId;
-
     const editar = await request(app)
       .patch(`/api/envios/${trackingId}`)
       .set("Authorization", `Bearer ${operadorToken}`)
       .send({
         destinatario: "Juan Pérez",
-        direccionEntrega: "Av. Siempre Viva 742"
+        direccionEntrega: "Av. Siempre Viva 742",
       });
-
     expect(editar.statusCode).toBe(200);
     expect(editar.body.mensaje).toContain("actualizados correctamente");
-
     const detalle = await request(app)
       .get(`/api/envios/${trackingId}`)
       .set("Authorization", `Bearer ${operadorToken}`);
-
     expect(detalle.statusCode).toBe(200);
     expect(detalle.body.destinatario).toBe("Juan Pérez");
     expect(detalle.body.direccionEntrega).toBe("Av. Siempre Viva 742");
@@ -440,19 +343,13 @@ describe("TEST8 Modificar datos del envío", () => {
       .send({
         remitente: "Sucursal Norte",
         destinatario: "María",
-        producto: "Documentación"
+        producto: "Documentación",
       });
-
     expect(crear.statusCode).toBe(201);
-
     const editar = await request(app)
       .patch(`/api/envios/${crear.body.trackingId}`)
       .set("Authorization", `Bearer ${operadorToken}`)
-      .send({
-        destinatario: "",
-        direccionEntrega: ""
-      });
-
+      .send({ destinatario: "", direccionEntrega: "" });
     expect(editar.statusCode).toBe(400);
     expect(editar.body.error).toBeDefined();
   });
@@ -464,33 +361,494 @@ describe("TEST8 Modificar datos del envío", () => {
       .send({
         remitente: "Centro Logístico",
         destinatario: "Pedro",
-        producto: "Monitor"
+        producto: "Monitor",
+      });
+    expect(crear.statusCode).toBe(201);
+    const trackingId = crear.body.trackingId;
+    await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+    await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+    await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+    const editar = await request(app)
+      .patch(`/api/envios/${trackingId}`)
+      .set("Authorization", `Bearer ${operadorToken}`)
+      .send({ destinatario: "Pedro Gómez", direccionEntrega: "Calle 123" });
+    expect(editar.statusCode).toBe(400);
+    expect(editar.body.error).toContain("entregado");
+  });
+});
+
+// ─────────────────────────────────────────
+// REGISTRAR DATOS DE USUARIO (Setup de cliente)
+// ─────────────────────────────────────────
+
+describe("TEST9 Registrar datos de usuario - Setup de cliente", () => {
+  let operadorToken;
+
+  beforeAll(async () => {
+    const marcaTiempo = Date.now();
+    const email = `operador.setup.${marcaTiempo}@logitrack.com`;
+    const registro = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email,
+        telefono: "+54 11 1111-2222",
+        nombreUsuario: `operadorsetup${marcaTiempo}`,
+        password: "Operador123!",
+      });
+    expect(registro.statusCode).toBe(201);
+    const listaUsuarios = await request(app)
+      .get("/api/usuarios")
+      .set("Authorization", `Bearer ${token}`);
+    const usuarioCreado = listaUsuarios.body.usuarios.find(
+      (u) => u.email === email,
+    );
+    await request(app)
+      .patch(`/api/usuarios/${usuarioCreado.id}/rol`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ rol: "Operador" });
+    const loginOperador = await request(app)
+      .post("/api/auth/login")
+      .send({ email, password: "Operador123!" });
+    operadorToken = loginOperador.body.token;
+  });
+
+  test("ESCN1 Registro exitoso - ubicación Casa Central", async () => {
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        remitente: "Depósito Sur",
+        destinatario: "Cliente Prueba",
+        producto: "Caja de documentos",
+      });
+    expect(crear.statusCode).toBe(201);
+    const trackingId = crear.body.trackingId;
+    const registrar = await request(app)
+      .patch(`/api/envios/${trackingId}`)
+      .set("Authorization", `Bearer ${operadorToken}`)
+      .send({
+        destinatario: "Cliente Prueba",
+        direccionEntrega: "Casa Central",
+      });
+    expect(registrar.statusCode).toBe(200);
+    expect(registrar.body.mensaje).toContain("actualizados correctamente");
+    const detalle = await request(app)
+      .get(`/api/envios/${trackingId}`)
+      .set("Authorization", `Bearer ${operadorToken}`);
+    expect(detalle.statusCode).toBe(200);
+    expect(detalle.body.direccionEntrega).toBe("Casa Central");
+  });
+});
+
+// ─────────────────────────────────────────
+// BUSCAR ENVÍO POR NOMBRE DE DESTINATARIO
+// ─────────────────────────────────────────
+
+describe("TEST10 Buscar envío por nombre de destinatario", () => {
+  beforeAll(async () => {
+    await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        remitente: "Depósito Central",
+        destinatario: "Casa Central",
+        producto: "Caja de insumos",
+      });
+  });
+
+  test("ESCN1 Búsqueda exitosa - destinatario existente: Casa Central", async () => {
+    const res = await request(app)
+      .get("/api/envios/buscar/destinatario?nombre=Casa Central")
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.envios).toBeDefined();
+    expect(res.body.envios.length).toBeGreaterThan(0);
+    expect(
+      res.body.envios.some((e) =>
+        e.destinatario.toLowerCase().includes("casa central"),
+      ),
+    ).toBe(true);
+  });
+
+  test("ESCN2 Búsqueda fallida - destinatario inexistente: Solo Deportes", async () => {
+    const res = await request(app)
+      .get("/api/envios/buscar/destinatario?nombre=Solo Deportes")
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.statusCode).toBe(404);
+    expect(res.body.error).toBeDefined();
+  });
+});
+
+// ─────────────────────────────────────────
+// REGISTRAR DATOS HISTÓRICOS DE ENVÍOS
+// ─────────────────────────────────────────
+
+describe("TEST11 Registrar datos históricos de envíos", () => {
+  let supervisorToken;
+
+  beforeAll(() => {
+    supervisorToken = token;
+  });
+
+  test("ESCN1 Persistencia en base de datos - cambio de estado a 'en sucursal'", async () => {
+    // Precondición: Crear envío
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({
+        remitente: "Depósito Central",
+        destinatario: "Juan García",
+        producto: "Caja de documentos",
       });
 
     expect(crear.statusCode).toBe(201);
 
     const trackingId = crear.body.trackingId;
 
-    await request(app)
-      .patch(`/api/envios/${trackingId}/estado`)
-      .set("Authorization", `Bearer ${supervisorToken}`);
-    await request(app)
-      .patch(`/api/envios/${trackingId}/estado`)
-      .set("Authorization", `Bearer ${supervisorToken}`);
-    await request(app)
+    // Acción: Cambiar estado a "en tránsito" (primer cambio)
+    const estado1 = await request(app)
       .patch(`/api/envios/${trackingId}/estado`)
       .set("Authorization", `Bearer ${supervisorToken}`);
 
-    const editar = await request(app)
-      .patch(`/api/envios/${trackingId}`)
-      .set("Authorization", `Bearer ${operadorToken}`)
+    expect(estado1.statusCode).toBe(200);
+    expect(estado1.body.nuevoEstado).toBe("en tránsito");
+
+    // Acción: Cambiar estado a "en sucursal" (segundo cambio)
+    const estado2 = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(estado2.statusCode).toBe(200);
+    expect(estado2.body.nuevoEstado).toBe("en sucursal");
+
+    // Resultado esperado: Verificar que el cambio se registró en la base de datos
+    const consultar = await request(app)
+      .get(`/api/envios/${trackingId}`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(consultar.statusCode).toBe(200);
+    expect(consultar.body.estado).toBe("en sucursal");
+    expect(consultar.body.trackingId).toBe(trackingId);
+    expect(consultar.body.remitente).toBe("Depósito Central");
+    expect(consultar.body.destinatario).toBe("Juan García");
+    expect(consultar.body.producto).toBe("Caja de documentos");
+  });
+
+  test("ESCN2 Persistencia en base de datos - cambio de estado a 'entregado' registra en historial", async () => {
+    // Precondición: Crear envío y llevarlo a entregado
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${supervisorToken}`)
       .send({
-        destinatario: "Pedro Gómez",
-        direccionEntrega: "Calle 123"
+        remitente: "Sucursal Norte",
+        destinatario: "María López",
+        producto: "Paquete de libros",
       });
 
-    expect(editar.statusCode).toBe(400);
-    expect(editar.body.error).toContain("entregado");
+    expect(crear.statusCode).toBe(201);
+
+    const trackingId = crear.body.trackingId;
+
+    // Avanzar el estado a "en sucursal"
+    const estado1 = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(estado1.statusCode).toBe(200);
+
+    // Avanzar el estado a "en sucursal"
+    const estado2 = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(estado2.statusCode).toBe(200);
+
+    // Acción: Cambiar estado a "entregado"
+    const estado3 = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(estado3.statusCode).toBe(200);
+    expect(estado3.body.nuevoEstado).toBe("entregado");
+
+    // Resultado esperado: Verificar que se registró en historial
+    const historial = await request(app)
+      .get("/api/historial")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(historial.statusCode).toBe(200);
+    expect(historial.body.historial).toBeDefined();
+
+    const registroHistorial = historial.body.historial.find(
+      (h) => h.trackingId === trackingId,
+    );
+
+    expect(registroHistorial).toBeDefined();
+    expect(registroHistorial.trackingId).toBe(trackingId);
+    expect(registroHistorial.remitente).toBe("Sucursal Norte");
+    expect(registroHistorial.destinatario).toBe("María López");
+    expect(registroHistorial.producto).toBe("Paquete de libros");
+    expect(registroHistorial.estadoFinal).toBe("entregado");
+    expect(registroHistorial.fechaEntrega).toBeDefined();
   });
 });
 
+// ─────────────────────────────────────────
+// PREPARAR DATASET DE ENTRENAMIENTO
+// ─────────────────────────────────────────
+
+describe("TEST12 Preparar dataset de entrenamiento", () => {
+  let supervisorToken;
+
+  beforeAll(async () => {
+    supervisorToken = token;
+
+    // Limpiar tablas para este test
+    await db.limpiarHistorialYLog();
+
+    // Crear múltiples envíos y llevarlos a entregado para tener datos de entrenamiento
+    for (let i = 0; i < 3; i++) {
+      const crear = await request(app)
+        .post("/api/envios")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          remitente: `Depósito ${i}`,
+          destinatario: `Cliente ${i}`,
+          producto: `Producto ${i}`,
+        });
+
+      expect(crear.statusCode).toBe(201);
+      const trackingId = crear.body.trackingId;
+
+      // Actualizar con dirección
+      await request(app)
+        .patch(`/api/envios/${trackingId}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          destinatario: `Cliente ${i}`,
+          direccionEntrega: `Calle Principal ${i}`,
+        });
+
+      // Avanzar a "en tránsito"
+      await request(app)
+        .patch(`/api/envios/${trackingId}/estado`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+
+      // Avanzar a "en sucursal"
+      await request(app)
+        .patch(`/api/envios/${trackingId}/estado`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+
+      // Avanzar a "entregado" (esto registra en historial)
+      await request(app)
+        .patch(`/api/envios/${trackingId}/estado`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+    }
+  });
+
+  test("ESCN1 Estructuración exitosa - Dataset generado correctamente", async () => {
+    const res = await request(app)
+      .post("/api/dataset/estructurar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.mensaje).toBeDefined();
+    expect(res.body.registrosProcessados).toBeGreaterThan(0);
+    expect(res.body.rutaArchivo).toBeDefined();
+    expect(res.body.rutaArchivo).toContain("training_data.csv");
+  });
+
+  test("ESCN2 Validación de restricción de 10 días", async () => {
+    // Este test verifica que si intenta estructurar nuevamente sin pasar 10 días, falla
+    // Dado que ESCN1 ya ejecutó la estructuración, este intento debe fallar
+    const respuesta = await request(app)
+      .post("/api/dataset/estructurar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(respuesta.statusCode).toBe(400);
+    expect(respuesta.body.error).toContain("10 días");
+  });
+
+  test("ESCN3 Acceso denegado - Solo Supervisor puede estructurar dataset", async () => {
+    // Crear usuario Cliente
+    const marcaTiempo = Date.now();
+    const email = `cliente.dataset.${marcaTiempo}@logitrack.com`;
+
+    const registro = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email,
+        telefono: "+54 11 9999-9999",
+        nombreUsuario: `clientedataset${marcaTiempo}`,
+        password: "ClientePass123!",
+      });
+
+    expect(registro.statusCode).toBe(201);
+
+    const loginCliente = await request(app)
+      .post("/api/auth/login")
+      .send({ email, password: "ClientePass123!" });
+
+    expect(loginCliente.statusCode).toBe(200);
+    const clienteToken = loginCliente.body.token;
+
+    // Intentar estructurar con token de Cliente
+    const res = await request(app)
+      .post("/api/dataset/estructurar")
+      .set("Authorization", `Bearer ${clienteToken}`);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("permisos");
+  });
+});
+
+// ─────────────────────────────────────────
+// EJECUCIÓN DE IA
+// ─────────────────────────────────────────
+
+describe("TEST13 Ejecución de IA", () => {
+  let supervisorToken;
+
+  beforeAll(async () => {
+    supervisorToken = token;
+
+    // Limpiar y preparar datos para IA
+    await db.limpiarHistorialYLog();
+
+    // Crear envíos y llevarlos a entregado para tener dataset
+    for (let i = 0; i < 5; i++) {
+      const crear = await request(app)
+        .post("/api/envios")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          remitente: `Depósito ${i}`,
+          destinatario: `Cliente ${i}`,
+          producto: `Producto ${i}`,
+        });
+
+      expect(crear.statusCode).toBe(201);
+      const trackingId = crear.body.trackingId;
+
+      // Actualizar dirección
+      await request(app)
+        .patch(`/api/envios/${trackingId}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          destinatario: `Cliente ${i}`,
+          direccionEntrega: `Calle Principal ${i}`,
+        });
+
+      // Transiciones de estado
+      for (let j = 0; j < 3; j++) {
+        await request(app)
+          .patch(`/api/envios/${trackingId}/estado`)
+          .set("Authorization", `Bearer ${supervisorToken}`);
+      }
+    }
+
+    // Generar dataset
+    const dataset = await request(app)
+      .post("/api/dataset/estructurar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(dataset.statusCode).toBe(200);
+  });
+
+  test("ESCN1 Ejecución exitosa - IA entrenada con métricas válidas", async () => {
+    const res = await request(app)
+      .post("/api/ia/ejecutar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.mensaje).toContain("entrenada exitosamente");
+    expect(res.body.metricas).toBeDefined();
+    expect(res.body.metricas.r2Score).toBeDefined();
+    expect(res.body.metricas.mae).toBeDefined();
+    expect(res.body.metricas.rmse).toBeDefined();
+    expect(res.body.metricas.cvScore).toBeDefined();
+    expect(res.body.metricas.registrosUsados).toBeGreaterThan(0);
+    expect(res.body.metricas.modelo).toBe("RandomForestRegressor");
+
+    // Verificar que las métricas se registraron en BD
+    const metricas = await request(app)
+      .get("/api/metricas")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(metricas.statusCode).toBe(200);
+    expect(metricas.body.metricas).toBeDefined();
+    expect(metricas.body.metricas.length).toBeGreaterThan(0);
+
+    const ultimaMetrica = metricas.body.metricas[0];
+    expect(ultimaMetrica.r2Score).toBe(res.body.metricas.r2Score);
+    expect(ultimaMetrica.mae).toBe(res.body.metricas.mae);
+  }, 60000);
+
+  test("ESCN2 Acceso denegado - Solo Supervisor puede ejecutar IA", async () => {
+    // Crear usuario Operador
+    const marcaTiempo = Date.now();
+    const email = `operador.ia.${marcaTiempo}@logitrack.com`;
+
+    const registro = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email,
+        telefono: "+54 11 8888-8888",
+        nombreUsuario: `operador_ia_${marcaTiempo}`,
+        password: "OperadorPass123!",
+      });
+
+    expect(registro.statusCode).toBe(201);
+
+    // Cambiar rol a Operador
+    const usuarios = await request(app)
+      .get("/api/usuarios")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    const usuarioOperador = usuarios.body.usuarios.find((u) => u.email === email);
+
+    await request(app)
+      .patch(`/api/usuarios/${usuarioOperador.id}/rol`)
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({ rol: "Operador" });
+
+    // Login como Operador
+    const loginOperador = await request(app)
+      .post("/api/auth/login")
+      .send({ email, password: "OperadorPass123!" });
+
+    expect(loginOperador.statusCode).toBe(200);
+    const operadorToken = loginOperador.body.token;
+
+    // Intentar ejecutar IA
+    const res = await request(app)
+      .post("/api/ia/ejecutar")
+      .set("Authorization", `Bearer ${operadorToken}`);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("permisos");
+  });
+
+  test("ESCN3 Error - Dataset no existe", async () => {
+    // Limpiar dataset para simular que no existe
+    const datasetsDir = require('path').join(__dirname, '..', 'datasets');
+    const fs = require('fs');
+    const csvPath = require('path').join(datasetsDir, 'training_data.csv');
+
+    if (fs.existsSync(csvPath)) {
+      fs.unlinkSync(csvPath);
+    }
+
+    const res = await request(app)
+      .post("/api/ia/ejecutar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("dataset");
+  });
+});
