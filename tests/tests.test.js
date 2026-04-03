@@ -707,3 +707,148 @@ describe("TEST12 Preparar dataset de entrenamiento", () => {
     expect(res.body.error).toContain("permisos");
   });
 });
+
+// ─────────────────────────────────────────
+// EJECUCIÓN DE IA
+// ─────────────────────────────────────────
+
+describe("TEST13 Ejecución de IA", () => {
+  let supervisorToken;
+
+  beforeAll(async () => {
+    supervisorToken = token;
+
+    // Limpiar y preparar datos para IA
+    await db.limpiarHistorialYLog();
+
+    // Crear envíos y llevarlos a entregado para tener dataset
+    for (let i = 0; i < 5; i++) {
+      const crear = await request(app)
+        .post("/api/envios")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          remitente: `Depósito ${i}`,
+          destinatario: `Cliente ${i}`,
+          producto: `Producto ${i}`,
+        });
+
+      expect(crear.statusCode).toBe(201);
+      const trackingId = crear.body.trackingId;
+
+      // Actualizar dirección
+      await request(app)
+        .patch(`/api/envios/${trackingId}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          destinatario: `Cliente ${i}`,
+          direccionEntrega: `Calle Principal ${i}`,
+        });
+
+      // Transiciones de estado
+      for (let j = 0; j < 3; j++) {
+        await request(app)
+          .patch(`/api/envios/${trackingId}/estado`)
+          .set("Authorization", `Bearer ${supervisorToken}`);
+      }
+    }
+
+    // Generar dataset
+    const dataset = await request(app)
+      .post("/api/dataset/estructurar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(dataset.statusCode).toBe(200);
+  });
+
+  test("ESCN1 Ejecución exitosa - IA entrenada con métricas válidas", async () => {
+    const res = await request(app)
+      .post("/api/ia/ejecutar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.mensaje).toContain("entrenada exitosamente");
+    expect(res.body.metricas).toBeDefined();
+    expect(res.body.metricas.r2Score).toBeDefined();
+    expect(res.body.metricas.mae).toBeDefined();
+    expect(res.body.metricas.rmse).toBeDefined();
+    expect(res.body.metricas.cvScore).toBeDefined();
+    expect(res.body.metricas.registrosUsados).toBeGreaterThan(0);
+    expect(res.body.metricas.modelo).toBe("RandomForestRegressor");
+
+    // Verificar que las métricas se registraron en BD
+    const metricas = await request(app)
+      .get("/api/metricas")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(metricas.statusCode).toBe(200);
+    expect(metricas.body.metricas).toBeDefined();
+    expect(metricas.body.metricas.length).toBeGreaterThan(0);
+
+    const ultimaMetrica = metricas.body.metricas[0];
+    expect(ultimaMetrica.r2Score).toBe(res.body.metricas.r2Score);
+    expect(ultimaMetrica.mae).toBe(res.body.metricas.mae);
+  }, 60000);
+
+  test("ESCN2 Acceso denegado - Solo Supervisor puede ejecutar IA", async () => {
+    // Crear usuario Operador
+    const marcaTiempo = Date.now();
+    const email = `operador.ia.${marcaTiempo}@logitrack.com`;
+
+    const registro = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email,
+        telefono: "+54 11 8888-8888",
+        nombreUsuario: `operador_ia_${marcaTiempo}`,
+        password: "OperadorPass123!",
+      });
+
+    expect(registro.statusCode).toBe(201);
+
+    // Cambiar rol a Operador
+    const usuarios = await request(app)
+      .get("/api/usuarios")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    const usuarioOperador = usuarios.body.usuarios.find((u) => u.email === email);
+
+    await request(app)
+      .patch(`/api/usuarios/${usuarioOperador.id}/rol`)
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({ rol: "Operador" });
+
+    // Login como Operador
+    const loginOperador = await request(app)
+      .post("/api/auth/login")
+      .send({ email, password: "OperadorPass123!" });
+
+    expect(loginOperador.statusCode).toBe(200);
+    const operadorToken = loginOperador.body.token;
+
+    // Intentar ejecutar IA
+    const res = await request(app)
+      .post("/api/ia/ejecutar")
+      .set("Authorization", `Bearer ${operadorToken}`);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("permisos");
+  });
+
+  test("ESCN3 Error - Dataset no existe", async () => {
+    // Limpiar dataset para simular que no existe
+    const datasetsDir = require('path').join(__dirname, '..', 'datasets');
+    const fs = require('fs');
+    const csvPath = require('path').join(datasetsDir, 'training_data.csv');
+
+    if (fs.existsSync(csvPath)) {
+      fs.unlinkSync(csvPath);
+    }
+
+    const res = await request(app)
+      .post("/api/ia/ejecutar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("dataset");
+  });
+});
