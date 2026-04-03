@@ -87,6 +87,8 @@ async function obtenerUsuarioActual() {
 }
 
 // ─── VALIDACIONES FRONTEND ────────────────────────────────────
+const REGEX_SOLO_LETRAS = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+
 function validarCampo(valor, nombre, minLen = 2, maxLen = 100) {
   if (!valor || valor.trim().length === 0)
     return `El campo ${nombre} es obligatorio.`;
@@ -94,6 +96,13 @@ function validarCampo(valor, nombre, minLen = 2, maxLen = 100) {
     return `El campo ${nombre} debe tener al menos ${minLen} caracteres.`;
   if (valor.length > maxLen)
     return `El campo ${nombre} no puede superar los ${maxLen} caracteres.`;
+  return null;
+}
+
+function validarSoloLetras(valor, nombre) {
+  if (!REGEX_SOLO_LETRAS.test(valor)) {
+    return `El campo ${nombre} solo puede contener letras y espacios.`;
+  }
   return null;
 }
 
@@ -109,11 +118,13 @@ async function crearEnvio(e) {
   const errRemitente = validarCampo(remitente, "remitente");
   const errDestinatario = validarCampo(destinatario, "destinatario");
   const errProducto = validarCampo(producto, "producto", 2, 200);
+  const errRemitenteLetras = validarSoloLetras(remitente, "remitente");
+  const errDestinatarioLetras = validarSoloLetras(destinatario, "destinatario");
 
-  if (errRemitente || errDestinatario || errProducto) {
+  if (errRemitente || errDestinatario || errProducto || errRemitenteLetras || errDestinatarioLetras) {
     showAlert(
       "alert-crear",
-      errRemitente || errDestinatario || errProducto,
+      errRemitente || errDestinatario || errProducto || errRemitenteLetras || errDestinatarioLetras,
       "error",
     );
     return;
@@ -318,6 +329,12 @@ async function buscarEnvio() {
     return;
   }
 
+  if (!/^[A-Z]{2}-\d{6}$/.test(trackingId)) {
+    document.getElementById("resultado-busqueda").innerHTML =
+      `<div class="alert alert-error show">❌ El Tracking ID no es válido. Debe tener el formato: XX-XXXXXX (ej: AB-123456).</div>`;
+    return;
+  }
+
   const resultDiv = document.getElementById("resultado-busqueda");
   resultDiv.innerHTML = '<p style="color:var(--text-muted)">Buscando...</p>';
 
@@ -380,6 +397,11 @@ async function buscarPorDestinatario() {
 
   if (!nombre) {
     resultDiv.innerHTML = `<div class="alert alert-error show">❌ Ingresá un nombre para buscar.</div>`;
+    return;
+  }
+
+  if (!REGEX_SOLO_LETRAS.test(nombre)) {
+    resultDiv.innerHTML = `<div class="alert alert-error show">❌ El nombre no es válido. Solo puede contener letras y espacios.</div>`;
     return;
   }
 

@@ -79,6 +79,12 @@ async function requireAuth(req, res, next) {
  *       409:
  *         description: Email ya registrado
  */
+// Expresiones regulares para validación global
+const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const REGEX_TELEFONO = /^\+?[\d\s\-\(\)]{6,}$/;
+const REGEX_PASSWORD = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+const REGEX_SOLO_LETRAS = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+
 app.post('/api/auth/register', async (req, res) => {
   const { email, telefono, nombreUsuario, password } = req.body;
 
@@ -86,8 +92,20 @@ app.post('/api/auth/register', async (req, res) => {
     return res.status(400).json({ error: 'Todos los campos son obligatorios.' });
   }
 
-  if (nombreUsuario.trim().length < 3) {
-    return res.status(400).json({ error: 'El nombre de usuario debe tener al menos 3 caracteres.' });
+  if (!REGEX_EMAIL.test(email.trim())) {
+    return res.status(400).json({ error: 'El formato del email no es válido.' });
+  }
+
+  if (!REGEX_TELEFONO.test(telefono.trim())) {
+    return res.status(400).json({ error: 'El formato del número de teléfono no es válido. Debe tener al menos 6 dígitos.' });
+  }
+
+  if (nombreUsuario.trim().length < 5) {
+    return res.status(400).json({ error: 'El nombre de usuario debe tener al menos 5 caracteres.' });
+  }
+
+  if (!REGEX_PASSWORD.test(password)) {
+    return res.status(400).json({ error: 'La contraseña debe tener un mínimo de 8 caracteres, al menos una mayúscula y al menos un número.' });
   }
 
   try {
@@ -307,6 +325,12 @@ app.post('/api/envios', requireAuth, async (req, res) => {
   if (remitente.trim().length < 2 || destinatario.trim().length < 2) {
     return res.status(400).json({ error: 'El remitente y destinatario deben tener al menos 2 caracteres.' });
   }
+  if (!REGEX_SOLO_LETRAS.test(remitente.trim())) {
+    return res.status(400).json({ error: 'El remitente solo puede contener letras y espacios.' });
+  }
+  if (!REGEX_SOLO_LETRAS.test(destinatario.trim())) {
+    return res.status(400).json({ error: 'El destinatario solo puede contener letras y espacios.' });
+  }
   if (remitente.length > 100 || destinatario.length > 100 || producto.length > 200) {
     return res.status(400).json({ error: 'Uno o más campos superan la longitud máxima permitida.' });
   }
@@ -388,6 +412,10 @@ app.get('/api/envios/buscar/destinatario', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Ingresá un nombre para buscar.' });
   }
 
+  if (!REGEX_SOLO_LETRAS.test(nombre.trim())) {
+    return res.status(400).json({ error: 'El nombre no es válido. Solo puede contener letras y espacios.' });
+  }
+
   try {
     const envios = await db.buscarPorDestinatario(nombre.trim());
 
@@ -421,8 +449,14 @@ app.get('/api/envios/buscar/destinatario', requireAuth, async (req, res) => {
  *         description: Envío no encontrado
  */
 app.get('/api/envios/:trackingId', requireAuth, async (req, res) => {
+  const trackingId = req.params.trackingId.toUpperCase();
+
+  if (!/^[A-Z]{2}-\d{6}$/.test(trackingId)) {
+    return res.status(400).json({ error: 'El Tracking ID no es válido. Debe tener el formato: XX-XXXXXX.' });
+  }
+
   try {
-    const envio = await db.buscarPorTracking(req.params.trackingId.toUpperCase());
+    const envio = await db.buscarPorTracking(trackingId);
     if (!envio) {
       return res.status(404).json({ error: 'Envío no encontrado.' });
     }
