@@ -21,3 +21,6 @@ jobs:
 
       - name: Run tests
         run: npm test
+        env:
+          ADMIN_EMAIL: admin@logitrack.com
+          ADMIN_PASS: Admin1234!
