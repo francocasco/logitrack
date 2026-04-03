@@ -598,3 +598,112 @@ describe("TEST11 Registrar datos históricos de envíos", () => {
     expect(registroHistorial.fechaEntrega).toBeDefined();
   });
 });
+
+// ─────────────────────────────────────────
+// PREPARAR DATASET DE ENTRENAMIENTO
+// ─────────────────────────────────────────
+
+describe("TEST12 Preparar dataset de entrenamiento", () => {
+  let supervisorToken;
+
+  beforeAll(async () => {
+    supervisorToken = token;
+
+    // Limpiar tablas para este test
+    await db.limpiarHistorialYLog();
+
+    // Crear múltiples envíos y llevarlos a entregado para tener datos de entrenamiento
+    for (let i = 0; i < 3; i++) {
+      const crear = await request(app)
+        .post("/api/envios")
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          remitente: `Depósito ${i}`,
+          destinatario: `Cliente ${i}`,
+          producto: `Producto ${i}`,
+        });
+
+      expect(crear.statusCode).toBe(201);
+      const trackingId = crear.body.trackingId;
+
+      // Actualizar con dirección
+      await request(app)
+        .patch(`/api/envios/${trackingId}`)
+        .set("Authorization", `Bearer ${supervisorToken}`)
+        .send({
+          destinatario: `Cliente ${i}`,
+          direccionEntrega: `Calle Principal ${i}`,
+        });
+
+      // Avanzar a "en tránsito"
+      await request(app)
+        .patch(`/api/envios/${trackingId}/estado`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+
+      // Avanzar a "en sucursal"
+      await request(app)
+        .patch(`/api/envios/${trackingId}/estado`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+
+      // Avanzar a "entregado" (esto registra en historial)
+      await request(app)
+        .patch(`/api/envios/${trackingId}/estado`)
+        .set("Authorization", `Bearer ${supervisorToken}`);
+    }
+  });
+
+  test("ESCN1 Estructuración exitosa - Dataset generado correctamente", async () => {
+    const res = await request(app)
+      .post("/api/dataset/estructurar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.mensaje).toBeDefined();
+    expect(res.body.registrosProcessados).toBeGreaterThan(0);
+    expect(res.body.rutaArchivo).toBeDefined();
+    expect(res.body.rutaArchivo).toContain("training_data.csv");
+  });
+
+  test("ESCN2 Validación de restricción de 10 días", async () => {
+    // Este test verifica que si intenta estructurar nuevamente sin pasar 10 días, falla
+    // Dado que ESCN1 ya ejecutó la estructuración, este intento debe fallar
+    const respuesta = await request(app)
+      .post("/api/dataset/estructurar")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(respuesta.statusCode).toBe(400);
+    expect(respuesta.body.error).toContain("10 días");
+  });
+
+  test("ESCN3 Acceso denegado - Solo Supervisor puede estructurar dataset", async () => {
+    // Crear usuario Cliente
+    const marcaTiempo = Date.now();
+    const email = `cliente.dataset.${marcaTiempo}@logitrack.com`;
+
+    const registro = await request(app)
+      .post("/api/auth/register")
+      .send({
+        email,
+        telefono: "+54 11 9999-9999",
+        nombreUsuario: `clientedataset${marcaTiempo}`,
+        password: "ClientePass123!",
+      });
+
+    expect(registro.statusCode).toBe(201);
+
+    const loginCliente = await request(app)
+      .post("/api/auth/login")
+      .send({ email, password: "ClientePass123!" });
+
+    expect(loginCliente.statusCode).toBe(200);
+    const clienteToken = loginCliente.body.token;
+
+    // Intentar estructurar con token de Cliente
+    const res = await request(app)
+      .post("/api/dataset/estructurar")
+      .set("Authorization", `Bearer ${clienteToken}`);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.error).toContain("permisos");
+  });
+});
