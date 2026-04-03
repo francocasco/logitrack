@@ -484,3 +484,117 @@ describe("TEST10 Buscar envío por nombre de destinatario", () => {
     expect(res.body.error).toBeDefined();
   });
 });
+
+// ─────────────────────────────────────────
+// REGISTRAR DATOS HISTÓRICOS DE ENVÍOS
+// ─────────────────────────────────────────
+
+describe("TEST11 Registrar datos históricos de envíos", () => {
+  let supervisorToken;
+
+  beforeAll(() => {
+    supervisorToken = token;
+  });
+
+  test("ESCN1 Persistencia en base de datos - cambio de estado a 'en sucursal'", async () => {
+    // Precondición: Crear envío
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({
+        remitente: "Depósito Central",
+        destinatario: "Juan García",
+        producto: "Caja de documentos",
+      });
+
+    expect(crear.statusCode).toBe(201);
+
+    const trackingId = crear.body.trackingId;
+
+    // Acción: Cambiar estado a "en tránsito" (primer cambio)
+    const estado1 = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(estado1.statusCode).toBe(200);
+    expect(estado1.body.nuevoEstado).toBe("en tránsito");
+
+    // Acción: Cambiar estado a "en sucursal" (segundo cambio)
+    const estado2 = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(estado2.statusCode).toBe(200);
+    expect(estado2.body.nuevoEstado).toBe("en sucursal");
+
+    // Resultado esperado: Verificar que el cambio se registró en la base de datos
+    const consultar = await request(app)
+      .get(`/api/envios/${trackingId}`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(consultar.statusCode).toBe(200);
+    expect(consultar.body.estado).toBe("en sucursal");
+    expect(consultar.body.trackingId).toBe(trackingId);
+    expect(consultar.body.remitente).toBe("Depósito Central");
+    expect(consultar.body.destinatario).toBe("Juan García");
+    expect(consultar.body.producto).toBe("Caja de documentos");
+  });
+
+  test("ESCN2 Persistencia en base de datos - cambio de estado a 'entregado' registra en historial", async () => {
+    // Precondición: Crear envío y llevarlo a entregado
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({
+        remitente: "Sucursal Norte",
+        destinatario: "María López",
+        producto: "Paquete de libros",
+      });
+
+    expect(crear.statusCode).toBe(201);
+
+    const trackingId = crear.body.trackingId;
+
+    // Avanzar el estado a "en sucursal"
+    const estado1 = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(estado1.statusCode).toBe(200);
+
+    // Avanzar el estado a "en sucursal"
+    const estado2 = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(estado2.statusCode).toBe(200);
+
+    // Acción: Cambiar estado a "entregado"
+    const estado3 = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(estado3.statusCode).toBe(200);
+    expect(estado3.body.nuevoEstado).toBe("entregado");
+
+    // Resultado esperado: Verificar que se registró en historial
+    const historial = await request(app)
+      .get("/api/historial")
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(historial.statusCode).toBe(200);
+    expect(historial.body.historial).toBeDefined();
+
+    const registroHistorial = historial.body.historial.find(
+      (h) => h.trackingId === trackingId,
+    );
+
+    expect(registroHistorial).toBeDefined();
+    expect(registroHistorial.trackingId).toBe(trackingId);
+    expect(registroHistorial.remitente).toBe("Sucursal Norte");
+    expect(registroHistorial.destinatario).toBe("María López");
+    expect(registroHistorial.producto).toBe("Paquete de libros");
+    expect(registroHistorial.estadoFinal).toBe("entregado");
+    expect(registroHistorial.fechaEntrega).toBeDefined();
+  });
+});
