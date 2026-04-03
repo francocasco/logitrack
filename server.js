@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const db = require('./db/database');
 
 //Swagger
@@ -574,6 +575,106 @@ app.post('/api/dataset/estructurar', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Error al estructurar dataset:', err.message);
     res.status(500).json({ error: 'No se pudo estructurar el dataset.' });
+  }
+});
+
+// POST /api/ia/ejecutar
+/**
+ * @swagger
+ * /api/ia/ejecutar:
+ *   post:
+ *     summary: Ejecutar modelo de IA
+ *     description: Entrena un modelo de ML con el dataset de entrenamiento y genera métricas (solo Supervisor)
+ *     responses:
+ *       200:
+ *         description: IA entrenada exitosamente
+ *       400:
+ *         description: No hay dataset disponible
+ *       403:
+ *         description: Sin permisos
+ *       500:
+ *         description: Error al ejecutar IA
+ */
+app.post('/api/ia/ejecutar', requireAuth, async (req, res) => {
+  if (req.usuario.rol !== 'Supervisor') {
+    return res.status(403).json({ error: 'No tenés permisos para ejecutar la IA.' });
+  }
+
+  try {
+    // Verificar que el dataset existe
+    const csvPath = path.join(__dirname, 'datasets', 'training_data.csv');
+    if (!fs.existsSync(csvPath)) {
+      return res.status(400).json({ error: 'No existe dataset de entrenamiento. Genera uno primero.' });
+    }
+
+    // Ejecutar script Python
+    const pythonScript = path.join(__dirname, 'ml', 'train_model.py');
+
+    return new Promise((resolve) => {
+      execFile('python', [pythonScript, csvPath], { timeout: 30000 }, async (error, stdout, stderr) => {
+        try {
+          if (error && error.code !== 0) {
+            console.error('Error Python:', stderr);
+            return resolve(res.status(500).json({ error: `Error al ejecutar IA: ${stderr}` }));
+          }
+
+          // Parsear resultado JSON del script Python
+          const resultado = JSON.parse(stdout);
+
+          if (!resultado.ok) {
+            return resolve(res.status(400).json({ error: resultado.error }));
+          }
+
+          // Guardar métricas en BD
+          await db.guardarMetricasIA(resultado);
+
+          return resolve(res.json({
+            mensaje: 'IA entrenada exitosamente',
+            metricas: {
+              r2Score: resultado.r2Score,
+              mae: resultado.mae,
+              rmse: resultado.rmse,
+              cvScore: resultado.cvScore,
+              registrosUsados: resultado.registrosUsados,
+              modelo: resultado.modelo
+            }
+          }));
+        } catch (parseError) {
+          console.error('Error parseando resultado Python:', parseError.message);
+          return resolve(res.status(500).json({ error: 'Error al procesar respuesta de IA.' }));
+        }
+      });
+    });
+  } catch (err) {
+    console.error('Error al ejecutar IA:', err.message);
+    res.status(500).json({ error: 'No se pudo ejecutar la IA.' });
+  }
+});
+
+// GET /api/metricas
+/**
+ * @swagger
+ * /api/metricas:
+ *   get:
+ *     summary: Obtener métricas de IA
+ *     description: Devuelve las últimas métricas generadas por la IA (solo Supervisor)
+ *     responses:
+ *       200:
+ *         description: Métricas obtenidas correctamente
+ *       403:
+ *         description: Sin permisos
+ */
+app.get('/api/metricas', requireAuth, async (req, res) => {
+  if (req.usuario.rol !== 'Supervisor') {
+    return res.status(403).json({ error: 'No tenés permisos para ver las métricas.' });
+  }
+
+  try {
+    const metricas = await db.obtenerMetricasIA();
+    res.json({ metricas });
+  } catch (err) {
+    console.error('Error al obtener métricas:', err.message);
+    res.status(500).json({ error: 'No se pudieron obtener las métricas.' });
   }
 });
 

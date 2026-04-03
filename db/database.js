@@ -85,6 +85,20 @@ async function inicializar() {
     )
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS metricas_ia (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fechaEjecucion TEXT NOT NULL,
+      modelo TEXT NOT NULL,
+      r2Score REAL NOT NULL,
+      mae REAL NOT NULL,
+      rmse REAL NOT NULL,
+      cvScore TEXT NOT NULL,
+      registrosUsados INTEGER NOT NULL,
+      rutaDataset TEXT NOT NULL
+    )
+  `);
+
   // Crear usuario admin inicial si no existe
 const email = process.env.ADMIN_EMAIL;
 const pass  = process.env.ADMIN_PASS;
@@ -486,6 +500,34 @@ async function limpiarHistorialYLog() {
   }
 }
 
+// ─── MÉTRICAS DE IA ─────────────────────────────────────────────────
+async function guardarMetricasIA(metricas) {
+  const fechaEjecucion = new Date().toISOString();
+
+  await db.execute({
+    sql: `INSERT INTO metricas_ia
+          (fechaEjecucion, modelo, r2Score, mae, rmse, cvScore, registrosUsados, rutaDataset)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      fechaEjecucion,
+      metricas.modelo || 'RandomForestRegressor',
+      metricas.r2Score,
+      metricas.mae,
+      metricas.rmse,
+      metricas.cvScore,
+      metricas.registrosUsados,
+      metricas.rutaDataset || 'datasets/training_data.csv'
+    ]
+  });
+}
+
+async function obtenerMetricasIA() {
+  const res = await db.execute(
+    'SELECT * FROM metricas_ia ORDER BY fechaEjecucion DESC LIMIT 10'
+  );
+  return res.rows;
+}
+
 module.exports = {
   inicializar,
   login,
@@ -504,5 +546,7 @@ module.exports = {
   registrarHistorial,
   obtenerHistorial,
   estructurarDataset,
-  limpiarHistorialYLog
+  limpiarHistorialYLog,
+  guardarMetricasIA,
+  obtenerMetricasIA
 };
