@@ -290,6 +290,52 @@ app.patch('/api/usuarios/:id/rol', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /api/usuarios/{id}/perfil:
+ *   patch:
+ *     summary: Actualizar datos de perfil del usuario
+ *     description: Actualiza nombre/negocio y dirección del usuario
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           example:
+ *             nombre: "Juan Perez SRL"
+ *             direccion: "Av. Corrientes 1234, Buenos Aires"
+ *     responses:
+ *       200:
+ *         description: Datos actualizados correctamente
+ *       400:
+ *         description: Datos inválidos
+ *       500:
+ *         description: Error al actualizar
+ */
+app.patch('/api/usuarios/:id/perfil', requireAuth, async (req, res) => {
+  const { nombre, direccion } = req.body;
+
+  if (!nombre?.trim() || !direccion?.trim()) {
+    return res.status(400).json({ error: 'El nombre/negocio y la dirección no pueden estar vacíos.' });
+  }
+
+  if (nombre.trim().length > 50 || direccion.trim().length > 50) {
+    return res.status(400).json({ error: 'El nombre y dirección no pueden superar 50 caracteres.' });
+  }
+
+  try {
+    await db.actualizarDatosUsuario(req.params.id, nombre.trim(), direccion.trim());
+    res.json({ mensaje: 'Datos del usuario actualizados correctamente.' });
+  } catch (err) {
+    console.error('Error al actualizar datos de usuario:', err.message);
+    res.status(500).json({ error: 'No se pudo actualizar los datos del usuario.' });
+  }
+});
 
 // ─────────────────────────────────────────
 //  RUTAS API (protegidas)
@@ -310,6 +356,9 @@ app.patch('/api/usuarios/:id/rol', requireAuth, async (req, res) => {
  *             remitente: Juan Pérez
  *             destinatario: María López
  *             producto: Celular
+ *             direccionRemitente: "Av. Corrientes 1234, Buenos Aires"
+ *             contactoRemitente: "+54 11 1234-5678"
+ *             contactoDestinatario: "maria@email.com"
  *     responses:
  *       201:
  *         description: Envío creado correctamente
@@ -317,7 +366,7 @@ app.patch('/api/usuarios/:id/rol', requireAuth, async (req, res) => {
  *         description: Datos inválidos
  */
 app.post('/api/envios', requireAuth, async (req, res) => {
-  const { remitente, destinatario, producto } = req.body;
+  const { remitente, destinatario, producto, direccionRemitente, contactoRemitente, contactoDestinatario, direccionEntrega } = req.body;
 
   if (!remitente || !destinatario || !producto) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios: remitente, destinatario y producto.' });
@@ -336,7 +385,15 @@ app.post('/api/envios', requireAuth, async (req, res) => {
   }
 
   try {
-    const trackingId = await db.crearEnvio(remitente.trim(), destinatario.trim(), producto.trim());
+    const trackingId = await db.crearEnvio(
+      remitente.trim(),
+      destinatario.trim(),
+      producto.trim(),
+      (direccionRemitente || '').trim(),
+      (contactoRemitente || '').trim(),
+      (contactoDestinatario || '').trim(),
+      (direccionEntrega || '').trim()
+    );
     res.status(201).json({ mensaje: 'Envío creado exitosamente.', trackingId });
   } catch (err) {
     console.error('Error al crear envío:', err.message);

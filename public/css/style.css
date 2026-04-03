@@ -95,6 +95,13 @@ body {
   margin-bottom: 20px;
 }
 
+/* Tarjeta de usuarios con más ancho para columnas largas */
+#page-usuarios .card {
+  width: calc(100vw - 320px);
+  max-width: 1320px;
+  min-width: 100%;
+}
+
 /* ── FORMULARIO ── */
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
@@ -132,8 +139,27 @@ body {
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ── TABLA ── */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
+.table-wrap {
+  overflow-x: auto;
+  width: 100%;
+}
+table {
+  min-width: 900px;
+  width: auto;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+th, td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#setup-destinatario-info {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
 th {
   text-align: left; padding: 10px 14px;
   font-family: var(--mono); font-size: 11px; font-weight: 500;
@@ -201,6 +227,7 @@ tr:hover td { background: var(--surface2); }
   .main { margin-left: 60px; padding: 20px 16px; }
   .form-row { grid-template-columns: 1fr; }
   .detail-grid { grid-template-columns: 1fr; }
+  #page-usuarios .card { width: 100%; max-width: 100%; }
 }
 
 /* ── PAGINACIÓN ── */

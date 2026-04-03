@@ -62,6 +62,30 @@ async function inicializar() {
     }
   }
 
+  try {
+    await db.execute(`ALTER TABLE envios ADD COLUMN direccionRemitente TEXT NOT NULL DEFAULT ''`);
+  } catch (error) {
+    if (!error.message.toLowerCase().includes('duplicate column name')) {
+      throw error;
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE envios ADD COLUMN contactoRemitente TEXT NOT NULL DEFAULT ''`);
+  } catch (error) {
+    if (!error.message.toLowerCase().includes('duplicate column name')) {
+      throw error;
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE envios ADD COLUMN contactoDestinatario TEXT NOT NULL DEFAULT ''`);
+  } catch (error) {
+    if (!error.message.toLowerCase().includes('duplicate column name')) {
+      throw error;
+    }
+  }
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,6 +108,22 @@ async function inicializar() {
       FOREIGN KEY (usuarioId) REFERENCES usuarios(id)
     )
   `);
+
+  try {
+    await db.execute(`ALTER TABLE usuarios ADD COLUMN nombre VARCHAR(50) NULL`);
+  } catch (error) {
+    if (!error.message.toLowerCase().includes('duplicate column name')) {
+      throw error;
+    }
+  }
+
+  try {
+    await db.execute(`ALTER TABLE usuarios ADD COLUMN direccion VARCHAR(50) NULL`);
+  } catch (error) {
+    if (!error.message.toLowerCase().includes('duplicate column name')) {
+      throw error;
+    }
+  }
 
   // Crear usuario admin inicial si no existe
 const email = process.env.ADMIN_EMAIL;
@@ -239,7 +279,7 @@ async function verificarToken(token) {
 
 // ─── ENVÍOS ───────────────────────────────────────────────────
 
-async function crearEnvio(remitente, destinatario, producto) {
+async function crearEnvio(remitente, destinatario, producto, direccionRemitente = '', contactoRemitente = '', contactoDestinatario = '', direccionEntrega = '') {
   const letras    = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const prefijo   = letras[Math.floor(Math.random() * 26)] + letras[Math.floor(Math.random() * 26)];
   const numero    = Math.floor(100000 + Math.random() * 900000);
@@ -247,9 +287,9 @@ async function crearEnvio(remitente, destinatario, producto) {
   const ahora     = new Date().toISOString();
 
   await db.execute({
-    sql: `INSERT INTO envios (trackingId, remitente, destinatario, producto, estado, fechaCreacion, fechaActualizacion)
-          VALUES (?, ?, ?, ?, 'creado', ?, ?)`,
-    args: [trackingId, remitente, destinatario, producto, ahora, ahora]
+    sql: `INSERT INTO envios (trackingId, remitente, destinatario, producto, estado, fechaCreacion, fechaActualizacion, direccionRemitente, contactoRemitente, contactoDestinatario, direccionEntrega)
+          VALUES (?, ?, ?, ?, 'creado', ?, ?, ?, ?, ?, ?)`,
+    args: [trackingId, remitente, destinatario, producto, ahora, ahora, direccionRemitente, contactoRemitente, contactoDestinatario, direccionEntrega]
   });
 
   return trackingId;
@@ -349,7 +389,7 @@ async function cambiarEstado(trackingId) {
 
 async function listarUsuarios() {
   const res = await db.execute({
-    sql: `SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion
+    sql: `SELECT id, email, telefono, nombreUsuario, nombre, direccion, rol, fechaCreacion
           FROM usuarios
           ORDER BY fechaCreacion DESC`
   });
@@ -486,6 +526,14 @@ async function limpiarHistorialYLog() {
   }
 }
 
+// ─── ACTUALIZAR DATOS DE USUARIO ──────────────────────────────
+async function actualizarDatosUsuario(id, nombre, direccion) {
+  await db.execute({
+    sql: 'UPDATE usuarios SET nombre = ?, direccion = ? WHERE id = ?',
+    args: [nombre || null, direccion || null, id]
+  });
+}
+
 module.exports = {
   inicializar,
   login,
@@ -501,6 +549,7 @@ module.exports = {
   crearUsuario,
   listarUsuarios,
   actualizarRolUsuario,
+  actualizarDatosUsuario,
   registrarHistorial,
   obtenerHistorial,
   estructurarDataset,

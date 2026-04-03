@@ -139,7 +139,7 @@ describe("Búsqueda de envío por Tracking ID", () => {
       .get("/api/envios/INVALIDO123") // formato incorrecto
       .set("Authorization", `Bearer ${token}`);
 
-    expect(buscar.statusCode).toBe(404);
+    expect(buscar.statusCode).toBe(400);
   });
 
   test("ESCN3 – Búsqueda fallida por tracking ID inexistente", async () => {

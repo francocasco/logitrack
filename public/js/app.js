@@ -114,6 +114,10 @@ async function crearEnvio(e) {
   const remitente = document.getElementById("remitente").value.trim();
   const destinatario = document.getElementById("destinatario").value.trim();
   const producto = document.getElementById("producto").value.trim();
+  const direccionRemitente = document.getElementById("direccionRemitente").value.trim();
+  const contactoRemitente = document.getElementById("contactoRemitente").value.trim();
+  const contactoDestinatario = document.getElementById("contactoDestinatario").value.trim();
+  const direccionEntrega = document.getElementById("direccionEntrega").value.trim();
 
   const errRemitente = validarCampo(remitente, "remitente");
   const errDestinatario = validarCampo(destinatario, "destinatario");
@@ -135,7 +139,15 @@ async function crearEnvio(e) {
   try {
     const res = await fetchAuth("/api/envios", {
       method: "POST",
-      body: JSON.stringify({ remitente, destinatario, producto }),
+      body: JSON.stringify({
+        remitente,
+        destinatario,
+        producto,
+        direccionRemitente,
+        contactoRemitente,
+        contactoDestinatario,
+        direccionEntrega
+      }),
     });
     const data = await res.json();
 
@@ -257,6 +269,8 @@ async function cargarUsuarios() {
         <td>${u.email}</td>
         <td>${u.telefono}</td>
         <td>${u.nombreUsuario}</td>
+        <td>${u.nombre || ""}</td>
+        <td>${u.direccion || ""}</td>
         <td>
           <select data-user-id="${u.id}">
             <option value="Cliente" ${u.rol === "Cliente" ? "selected" : ""}>Cliente</option>
@@ -348,6 +362,19 @@ async function buscarEnvio() {
     }
     if (!res.ok) throw new Error(data.error);
 
+    const direccionEntrega = data.direccionEntrega?.trim()
+      ? data.direccionEntrega
+      : "Sin especificar";
+    const direccionRemitente = data.direccionRemitente?.trim()
+      ? data.direccionRemitente
+      : "Sin especificar";
+    const contactoRemitente = data.contactoRemitente?.trim()
+      ? data.contactoRemitente
+      : "Sin especificar";
+    const contactoDestinatario = data.contactoDestinatario?.trim()
+      ? data.contactoDestinatario
+      : "Sin especificar";
+
     resultDiv.innerHTML = `
       <div class="card" style="margin-top:20px">
         <div class="detail-grid">
@@ -364,8 +391,24 @@ async function buscarEnvio() {
             <div class="value">${data.remitente}</div>
           </div>
           <div class="detail-item">
+            <label>Dirección remitente</label>
+            <div class="value">${direccionRemitente}</div>
+          </div>
+          <div class="detail-item">
+            <label>Contacto remitente</label>
+            <div class="value">${contactoRemitente}</div>
+          </div>
+          <div class="detail-item">
             <label>Destinatario</label>
             <div class="value">${data.destinatario}</div>
+          </div>
+          <div class="detail-item">
+            <label>Contacto destinatario</label>
+            <div class="value">${contactoDestinatario}</div>
+          </div>
+          <div class="detail-item">
+            <label>Dirección entrega</label>
+            <div class="value">${direccionEntrega}</div>
           </div>
           <div class="detail-item">
             <label>Producto</label>
@@ -491,6 +534,15 @@ async function verDetalle(trackingId) {
     const direccionEntrega = e.direccionEntrega?.trim()
       ? e.direccionEntrega
       : "Sin especificar";
+    const direccionRemitente = e.direccionRemitente?.trim()
+      ? e.direccionRemitente
+      : "Sin especificar";
+    const contactoRemitente = e.contactoRemitente?.trim()
+      ? e.contactoRemitente
+      : "Sin especificar";
+    const contactoDestinatario = e.contactoDestinatario?.trim()
+      ? e.contactoDestinatario
+      : "Sin especificar";
 
     const stepsHtml = ESTADOS.map((s, i) => {
       const cls = i < idx ? "done" : i === idx ? "current" : "";
@@ -507,6 +559,8 @@ async function verDetalle(trackingId) {
             <label>Tracking ID</label>
             <div class="value mono">${e.trackingId}</div>
           </div>
+
+          <!-- Primera fila: remitente y destinatario -->
           <div class="detail-item">
             <label>Remitente</label>
             <div class="value">${e.remitente}</div>
@@ -515,11 +569,29 @@ async function verDetalle(trackingId) {
             <label>Destinatario</label>
             <div class="value">${e.destinatario}</div>
           </div>
-          <div class="detail-item" style="grid-column:1/-1">
+
+          <!-- Segunda fila: contactos -->
+          <div class="detail-item">
+            <label>Contacto remitente</label>
+            <div class="value">${contactoRemitente}</div>
+          </div>
+          <div class="detail-item">
+            <label>Contacto destinatario</label>
+            <div class="value">${contactoDestinatario}</div>
+          </div>
+
+          <!-- Tercera fila: direcciones -->
+          <div class="detail-item">
+            <label>Dirección de remitente</label>
+            <div class="value">${direccionRemitente}</div>
+          </div>
+          <div class="detail-item">
             <label>Dirección de entrega</label>
             <div class="value">${direccionEntrega}</div>
           </div>
-          <div class="detail-item">
+
+          <!-- Información adicional -->
+          <div class="detail-item" style="grid-column:1/-1">
             <label>Producto</label>
             <div class="value">${e.producto}</div>
           </div>
@@ -643,6 +715,112 @@ async function avanzarEstado(trackingId) {
   }
 }
 
+// ─── SETUP DE CLIENTE ─────────────────────────────────────────
+async function cargarSetup() {
+  const select = document.getElementById("setup-tracking");
+  const btnGuardar = document.getElementById("btn-setup-guardar");
+  select.innerHTML = '<option value="">Cargando usuarios...</option>';
+
+  try {
+    const res = await fetchAuth("/api/usuarios");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    const { usuarios } = data;
+    select.innerHTML = '<option value="">-- Seleccioná un cliente --</option>';
+
+    usuarios
+      .filter((u) => u.rol === "Cliente")
+      .forEach((u) => {
+        const opt = document.createElement("option");
+        opt.value = u.id;
+        opt.textContent = u.nombreUsuario;
+        opt.dataset.nombre = u.nombre || "";
+        opt.dataset.direccion = u.direccion || "";
+        select.appendChild(opt);
+      });
+
+    select.addEventListener("change", () => {
+      const opt = select.options[select.selectedIndex];
+      const infoDiv = document.getElementById("setup-destinatario-info");
+      const nombreInput = document.getElementById("setup-nombre");
+      const direccionInput = document.getElementById("setup-direccion");
+
+      if (opt.value) {
+        infoDiv.style.display = "block";
+        document.getElementById("setup-destinatario-actual").textContent = opt.textContent;
+        nombreInput.value = opt.dataset.nombre;
+        direccionInput.value = opt.dataset.direccion;
+        btnGuardar.disabled = false;
+      } else {
+        infoDiv.style.display = "none";
+        nombreInput.value = "";
+        direccionInput.value = "";
+        btnGuardar.disabled = true;
+      }
+    });
+  } catch (err) {
+    select.innerHTML = '<option value="">Error al cargar usuarios</option>';
+    showAlert("alert-setup", `❌ ${err.message}`, "error");
+  }
+}
+
+async function guardarSetupCliente() {
+  const userId = document.getElementById("setup-tracking").value;
+  const nombre = document.getElementById("setup-nombre").value.trim();
+  const direccion = document.getElementById("setup-direccion").value.trim();
+
+  if (!userId) {
+    showAlert("alert-setup", "❌ Seleccioná un cliente.", "error");
+    return;
+  }
+
+  const errNombre = validarCampo(nombre, "nombre/negocio");
+  const errDireccion = validarCampo(direccion, "dirección");
+
+  if (errNombre || errDireccion) {
+    showAlert("alert-setup", `❌ ${errNombre || errDireccion}`, "error");
+    return;
+  }
+
+  const btn = document.getElementById("btn-setup-guardar");
+  btn.disabled = true;
+
+  try {
+    const res = await fetchAuth(`/api/usuarios/${userId}/perfil`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        nombre: nombre,
+        direccion: direccion,
+      }),
+    });
+    const data = await res.json();
+
+    if (res.status === 401) {
+      window.location.href = "/login.html";
+      return;
+    }
+    if (!res.ok) throw new Error(data.error);
+
+    showAlert(
+      "alert-setup",
+      `✅ Perfil del cliente actualizado correctamente.`,
+      "success",
+    );
+
+    // Refrescar el select para mostrar datos actualizados
+    await cargarSetup();
+    document.getElementById("setup-tracking").value = "";
+    document.getElementById("setup-nombre").value = "";
+    document.getElementById("setup-direccion").value = "";
+    document.getElementById("setup-destinatario-info").style.display = "none";
+  } catch (err) {
+    showAlert("alert-setup", `❌ ${err.message}`, "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ─── INIT ─────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".nav a").forEach((a) => {
@@ -699,114 +877,5 @@ document.addEventListener("click", async (e) => {
     );
   } catch (err) {
     showAlert("alert-usuarios", `❌ ${err.message}`, "error");
-  }
-  // ─── SETUP DE CLIENTE ─────────────────────────────────────────
-  async function cargarSetup() {
-    const select = document.getElementById("setup-tracking");
-    const btnGuardar = document.getElementById("btn-setup-guardar");
-    select.innerHTML = '<option value="">Cargando envíos...</option>';
-
-    try {
-      const res = await fetchAuth("/api/envios?porPagina=50");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      const { envios } = data;
-      select.innerHTML = '<option value="">-- Seleccioná un envío --</option>';
-
-      envios
-        .filter((e) => e.estado !== "entregado")
-        .forEach((e) => {
-          const opt = document.createElement("option");
-          opt.value = e.trackingId;
-          opt.textContent = `${e.trackingId} — ${e.destinatario}`;
-          opt.dataset.destinatario = e.destinatario;
-          opt.dataset.direccion = e.direccionEntrega || "";
-          select.appendChild(opt);
-        });
-
-      select.addEventListener("change", () => {
-        const opt = select.options[select.selectedIndex];
-        const infoDiv = document.getElementById("setup-destinatario-info");
-        const nombreInput = document.getElementById("setup-nombre");
-        const direccionInput = document.getElementById("setup-direccion");
-
-        if (opt.value) {
-          infoDiv.style.display = "block";
-          document.getElementById("setup-destinatario-actual").textContent =
-            opt.dataset.destinatario;
-          nombreInput.value = opt.dataset.destinatario;
-          direccionInput.value = opt.dataset.direccion;
-          btnGuardar.disabled = false;
-        } else {
-          infoDiv.style.display = "none";
-          nombreInput.value = "";
-          direccionInput.value = "";
-          btnGuardar.disabled = true;
-        }
-      });
-    } catch (err) {
-      select.innerHTML = '<option value="">Error al cargar envíos</option>';
-      showAlert("alert-setup", `❌ ${err.message}`, "error");
-    }
-  }
-
-  async function guardarSetupCliente() {
-    const trackingId = document.getElementById("setup-tracking").value;
-    const nombre = document.getElementById("setup-nombre").value.trim();
-    const direccion = document.getElementById("setup-direccion").value.trim();
-
-    if (!trackingId) {
-      showAlert("alert-setup", "❌ Seleccioná un envío.", "error");
-      return;
-    }
-
-    const errNombre = validarCampo(nombre, "nombre del destinatario");
-    const errDireccion = validarCampo(
-      direccion,
-      "ubicación de entrega/despacho",
-    );
-
-    if (errNombre || errDireccion) {
-      showAlert("alert-setup", `❌ ${errNombre || errDireccion}`, "error");
-      return;
-    }
-
-    const btn = document.getElementById("btn-setup-guardar");
-    btn.disabled = true;
-
-    try {
-      const res = await fetchAuth(`/api/envios/${trackingId}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          destinatario: nombre,
-          direccionEntrega: direccion,
-        }),
-      });
-      const data = await res.json();
-
-      if (res.status === 401) {
-        window.location.href = "/login.html";
-        return;
-      }
-      if (!res.ok) throw new Error(data.error);
-
-      showAlert(
-        "alert-setup",
-        `✅ Datos registrados correctamente para el envío ${trackingId}.`,
-        "success",
-      );
-
-      // Refrescar el select para mostrar datos actualizados
-      await cargarSetup();
-      document.getElementById("setup-tracking").value = "";
-      document.getElementById("setup-nombre").value = "";
-      document.getElementById("setup-direccion").value = "";
-      document.getElementById("setup-destinatario-info").style.display = "none";
-    } catch (err) {
-      showAlert("alert-setup", `❌ ${err.message}`, "error");
-    } finally {
-      btn.disabled = false;
-    }
   }
 });

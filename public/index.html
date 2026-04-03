@@ -99,15 +99,57 @@
                   />
                 </div>
               </div>
-              <div class="form-group">
-                <label for="producto">Producto / Descripción</label>
-                <input
-                  id="producto"
-                  type="text"
-                  placeholder="Ej: Notebook Dell, Caja documentos, etc."
-                  required
-                />
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="contactoRemitente">Contacto remitente</label>
+                  <input
+                    id="contactoRemitente"
+                    type="text"
+                    placeholder="Teléfono o email"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="contactoDestinatario">Contacto destinatario</label>
+                  <input
+                    id="contactoDestinatario"
+                    type="text"
+                    placeholder="Teléfono o email"
+                  />
+                </div>
               </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="direccionRemitente">Dirección de remitente</label>
+                  <input
+                    id="direccionRemitente"
+                    type="text"
+                    placeholder="Dirección de origen"
+                  />
+                </div>
+                <div class="form-group">
+                  <label for="direccionEntrega">Dirección de entrega</label>
+                  <input
+                    id="direccionEntrega"
+                    type="text"
+                    placeholder="Dirección de destino"
+                  />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="producto">Producto / Descripción</label>
+                  <input
+                    id="producto"
+                    type="text"
+                    placeholder="Ej: Notebook Dell, Caja documentos, etc."
+                    required
+                  />
+                </div>
+              </div>
+
               <button id="btn-crear" class="btn btn-primary" type="submit">
                 ➕ Crear envío
               </button>
@@ -219,6 +261,8 @@
                     <th>Email</th>
                     <th>Teléfono</th>
                     <th>Usuario</th>
+                    <th>Nombre/Negocio</th>
+                    <th>Dirección</th>
                     <th>Rol</th>
                     <th>Acción</th>
                   </tr>
@@ -234,8 +278,7 @@
           <div class="page-header">
             <h2>Setup de cliente</h2>
             <p>
-              Seleccioná un destinatario y registrá los datos de
-              entrega/despacho.
+              Seleccioná un cliente y registrá los datos de su perfil.
             </p>
           </div>
 
@@ -244,10 +287,10 @@
           <div class="card">
             <div class="form-group">
               <label for="setup-tracking"
-                >Seleccionar envío (Tracking ID)</label
+                >Seleccionar usuario</label
               >
               <select id="setup-tracking">
-                <option value="">-- Seleccioná un envío --</option>
+                <option value="">-- Seleccioná un usuario --</option>
               </select>
             </div>
 
@@ -261,22 +304,22 @@
                 border-radius: 8px;
               "
             >
-              <strong>Destinatario actual:</strong>
+              <strong>Cliente seleccionado:</strong>
               <span id="setup-destinatario-actual"></span>
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label for="setup-nombre">Nombre del destinatario</label>
+                <label for="setup-nombre">Nombre / Negocio</label>
                 <input
                   id="setup-nombre"
                   type="text"
-                  placeholder="Nombre completo o empresa"
+                  placeholder="Nombre completo o nombre del negocio"
                 />
               </div>
               <div class="form-group">
                 <label for="setup-direccion"
-                  >Ubicación de entrega/despacho</label
+                  >Dirección</label
                 >
                 <input
                   id="setup-direccion"
