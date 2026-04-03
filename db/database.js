@@ -17,6 +17,21 @@ const ESTADOS      = ['creado', 'en tránsito', 'en sucursal', 'entregado'];
 // ─── INICIALIZACIÓN ───────────────────────────────────────────
 async function inicializar() {
   // Crear tablas si no existen
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS historial_envios (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trackingId TEXT NOT NULL,
+      remitente TEXT NOT NULL,
+      destinatario TEXT NOT NULL,
+      producto TEXT NOT NULL,
+      direccionEntrega TEXT,
+      estadoFinal TEXT NOT NULL,
+      fechaCreacion TEXT NOT NULL,
+      fechaEntrega TEXT NOT NULL
+    )
+  `);
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS envios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -351,6 +366,42 @@ async function buscarPorDestinatario(nombre) {
   return res.rows;
 }
 
+// ─── HISTORIAL DE ENVÍOS ──────────────────────────────────────
+async function registrarHistorial(envio) {
+  const ahora = new Date().toISOString();
+
+  const existe = await db.execute({
+    sql: 'SELECT id FROM historial_envios WHERE trackingId = ?',
+    args: [envio.trackingId]
+  });
+
+  if (existe.rows.length > 0) return;
+
+  await db.execute({
+    sql: `INSERT INTO historial_envios (
+            trackingId, remitente, destinatario, producto,
+            direccionEntrega, estadoFinal, fechaCreacion, fechaEntrega
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      envio.trackingId,
+      envio.remitente,
+      envio.destinatario,
+      envio.producto,
+      envio.direccionEntrega || '',
+      envio.estado,
+      envio.fechaCreacion,
+      ahora
+    ]
+  });
+}
+
+async function obtenerHistorial() {
+  const res = await db.execute(
+    'SELECT * FROM historial_envios ORDER BY fechaEntrega DESC'
+  );
+  return res.rows;
+}
+
 module.exports = {
   inicializar,
   login,
@@ -365,5 +416,7 @@ module.exports = {
   ESTADOS,
   crearUsuario,
   listarUsuarios,
-  actualizarRolUsuario
+  actualizarRolUsuario,
+  registrarHistorial,  
+  obtenerHistorial   
 };

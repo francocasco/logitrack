@@ -498,10 +498,31 @@ app.patch('/api/envios/:trackingId/estado', requireAuth, async (req, res) => {
     if (resultado.error) {
       return res.status(400).json({ error: resultado.error });
     }
+
+    // Si el nuevo estado es "entregado", registrar en historial
+    if (resultado.nuevoEstado === 'entregado') {
+      const envio = await db.buscarPorTracking(req.params.trackingId.toUpperCase());
+      await db.registrarHistorial(envio);
+    }
+
     res.json({ mensaje: `Estado actualizado a "${resultado.nuevoEstado}".`, ...resultado });
   } catch (err) {
     console.error('Error al cambiar estado:', err.message);
     res.status(500).json({ error: 'No se pudo actualizar el estado del envío.' });
+  }
+});
+
+// GET /api/historial
+app.get('/api/historial', requireAuth, async (req, res) => {
+  if (!['Operador', 'Supervisor'].includes(req.usuario.rol)) {
+    return res.status(403).json({ error: 'No tenés permisos para ver el historial.' });
+  }
+  try {
+    const historial = await db.obtenerHistorial();
+    res.json({ historial });
+  } catch (err) {
+    console.error('Error al obtener historial:', err.message);
+    res.status(500).json({ error: 'No se pudo obtener el historial.' });
   }
 });
 
