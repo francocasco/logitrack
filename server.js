@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const db = require('./db/database');
 
 //Swagger
@@ -523,6 +524,56 @@ app.get('/api/historial', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Error al obtener historial:', err.message);
     res.status(500).json({ error: 'No se pudo obtener el historial.' });
+  }
+});
+
+// POST /api/dataset/estructurar
+/**
+ * @swagger
+ * /api/dataset/estructurar:
+ *   post:
+ *     summary: Estructurar dataset de entrenamiento
+ *     description: Genera un archivo CSV con datos históricos formateados para ML (solo Supervisor)
+ *     responses:
+ *       200:
+ *         description: Dataset estructurado correctamente
+ *       400:
+ *         description: No es posible estructurar aún o sin datos
+ *       403:
+ *         description: Sin permisos
+ *       500:
+ *         description: Error al procesar
+ */
+app.post('/api/dataset/estructurar', requireAuth, async (req, res) => {
+  if (req.usuario.rol !== 'Supervisor') {
+    return res.status(403).json({ error: 'No tenés permisos para estructurar el dataset.' });
+  }
+
+  try {
+    const resultado = await db.estructurarDataset();
+
+    if (!resultado.ok) {
+      return res.status(400).json({ error: resultado.mensaje });
+    }
+
+    // Crear carpeta datasets si no existe
+    const datasetsDir = path.join(__dirname, 'datasets');
+    if (!fs.existsSync(datasetsDir)) {
+      fs.mkdirSync(datasetsDir, { recursive: true });
+    }
+
+    // Guardar CSV
+    const csvPath = path.join(datasetsDir, 'training_data.csv');
+    fs.writeFileSync(csvPath, resultado.csvContent, 'utf-8');
+
+    res.json({
+      mensaje: resultado.mensaje,
+      registrosProcessados: resultado.registrosProcessados,
+      rutaArchivo: csvPath
+    });
+  } catch (err) {
+    console.error('Error al estructurar dataset:', err.message);
+    res.status(500).json({ error: 'No se pudo estructurar el dataset.' });
   }
 });
 
