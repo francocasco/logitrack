@@ -12,7 +12,7 @@ const PAGINAS_RESTRINGIDAS_CLIENTE = new Set([
   "page-setup",
 ]);
 
-const PAGINAS_RESTRINGIDAS_OPERADOR = new Set(["page-usuarios"]);
+const PAGINAS_RESTRINGIDAS_OPERADOR = new Set(["page-usuarios", "page-ia"]);
 const ESTADOS_ENVIO = ["creado", "en tránsito", "en sucursal", "entregado"];
 const ICONOS_ESTADO_ENVIO = ["📋", "🚚", "🏢", "✅"];
 
@@ -42,6 +42,7 @@ function mensajePermisoPorPagina(pageId) {
     "page-crear": "No tenés permisos para acceder a Nuevo envío.",
     "page-usuarios": "No tenés permisos para acceder a Usuarios.",
     "page-setup": "No tenés permisos para acceder a Setup de cliente.",
+    "page-ia": "El Panel IA es exclusivo para Supervisores.",
   };
 
   return mensajes[pageId] || "No tenés permisos para acceder a esta sección.";
@@ -1167,3 +1168,157 @@ document.addEventListener("click", async (e) => {
     showAlert("alert-usuarios", `❌ ${err.message}`, "error");
   }
 });
+
+// ─────────────────────────────────────────
+//  PANEL IA
+// ─────────────────────────────────────────
+
+async function estructurarDataset() {
+  const btn = document.getElementById("btn-estructurar");
+  const btnText = document.getElementById("btn-estructurar-text");
+  const statusBox = document.getElementById("dataset-status");
+  const badge = document.getElementById("dataset-result-badge");
+
+  btn.disabled = true;
+  btnText.textContent = "⏳ Procesando...";
+  badge.style.display = "none";
+  statusBox.style.display = "block";
+  statusBox.className = "ia-status-box loading";
+  statusBox.textContent = "Leyendo historial de envíos entregados...";
+
+  try {
+    const res = await fetchAuth("/api/dataset/estructurar", { method: "POST" });
+    const data = await res.json();
+
+    if (res.status === 401) { window.location.href = "/login.html"; return; }
+
+    if (!res.ok) {
+      statusBox.className = "ia-status-box error";
+      statusBox.textContent = `✗ ${data.error}`;
+      badge.textContent = "Error";
+      badge.className = "ia-result-badge error";
+      badge.style.display = "inline-flex";
+    } else {
+      statusBox.className = "ia-status-box ok";
+      statusBox.textContent = `✓ ${data.mensaje} — ${data.registrosProcessados} registros procesados.`;
+      badge.textContent = "✓ Listo";
+      badge.className = "ia-result-badge ok";
+      badge.style.display = "inline-flex";
+    }
+  } catch (err) {
+    statusBox.className = "ia-status-box error";
+    statusBox.textContent = `✗ Error de conexión: ${err.message}`;
+    badge.textContent = "Error";
+    badge.className = "ia-result-badge error";
+    badge.style.display = "inline-flex";
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = "⚙️ Estructurar dataset";
+  }
+}
+
+async function entrenarModelo() {
+  const btn = document.getElementById("btn-entrenar");
+  const btnText = document.getElementById("btn-entrenar-text");
+  const statusBox = document.getElementById("modelo-status");
+  const badge = document.getElementById("modelo-result-badge");
+  const metricas = document.getElementById("metricas-container");
+
+  btn.disabled = true;
+  btnText.textContent = "⏳ Entrenando...";
+  badge.style.display = "none";
+  metricas.style.display = "none";
+  statusBox.style.display = "block";
+  statusBox.className = "ia-status-box loading";
+  statusBox.textContent = "Ejecutando RandomForestRegressor...";
+
+  try {
+    const res = await fetchAuth("/api/modelo/entrenar", { method: "POST" });
+    const data = await res.json();
+
+    if (res.status === 401) { window.location.href = "/login.html"; return; }
+
+    if (!res.ok) {
+      statusBox.className = "ia-status-box error";
+      statusBox.textContent = `✗ ${data.error}`;
+      badge.textContent = "Error";
+      badge.className = "ia-result-badge error";
+      badge.style.display = "inline-flex";
+    } else {
+      statusBox.className = "ia-status-box ok";
+      statusBox.textContent = `✓ ${data.mensaje}`;
+      badge.textContent = "✓ Modelo entrenado";
+      badge.className = "ia-result-badge ok";
+      badge.style.display = "inline-flex";
+
+      document.getElementById("metric-r2").textContent = data.r2Score?.toFixed(4) ?? "—";
+      document.getElementById("metric-mae").textContent = data.mae?.toFixed(4) ?? "—";
+      document.getElementById("metric-rmse").textContent = data.rmse?.toFixed(4) ?? "—";
+      document.getElementById("metric-cv").textContent = data.cvScore ?? "—";
+      document.getElementById("metric-registros").textContent = data.registrosUsados ?? "—";
+      document.getElementById("metric-modelo").textContent = data.modelo ?? "—";
+      metricas.style.display = "block";
+    }
+  } catch (err) {
+    statusBox.className = "ia-status-box error";
+    statusBox.textContent = `✗ Error de conexión: ${err.message}`;
+    badge.textContent = "Error";
+    badge.className = "ia-result-badge error";
+    badge.style.display = "inline-flex";
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = "🧠 Entrenar modelo";
+  }
+}
+
+async function predecirEnvio() {
+  const input = document.getElementById("input-predecir");
+  const btnText = document.getElementById("btn-predecir-text");
+  const statusBox = document.getElementById("predecir-status");
+  const resultado = document.getElementById("prediccion-resultado");
+
+  const trackingId = input.value.trim().toUpperCase();
+
+  if (!trackingId) {
+    statusBox.style.display = "block";
+    statusBox.className = "ia-status-box error";
+    statusBox.textContent = "✗ Ingresá un Tracking ID.";
+    return;
+  }
+
+  btnText.textContent = "⏳ Calculando...";
+  statusBox.style.display = "block";
+  statusBox.className = "ia-status-box loading";
+  statusBox.textContent = "Consultando modelo...";
+  resultado.style.display = "none";
+
+  try {
+    const res = await fetchAuth("/api/modelo/predecir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trackingId })
+    });
+
+    const data = await res.json();
+
+    if (res.status === 401) { window.location.href = "/login.html"; return; }
+
+    if (!res.ok) {
+      statusBox.className = "ia-status-box error";
+      statusBox.textContent = `✗ ${data.error}`;
+    } else {
+      statusBox.style.display = "none";
+      document.getElementById("pred-dias").textContent = data.diasEstimados;
+      document.getElementById("pred-tracking").textContent = data.trackingId;
+      document.getElementById("pred-producto").textContent = data.producto;
+      document.getElementById("pred-destinatario").textContent = data.destinatario;
+      document.getElementById("pred-estado").textContent = data.estado;
+      resultado.style.display = "block";
+    }
+  } catch (err) {
+    statusBox.className = "ia-status-box error";
+    statusBox.textContent = `✗ Error de conexión: ${err.message}`;
+  } finally {
+    btnText.textContent = "🔮 Predecir";
+  }
+}

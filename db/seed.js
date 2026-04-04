@@ -312,6 +312,26 @@ async function sembrarUsuarios() {
         args: [envio.trackingId, entrada.estado, entrada.fechaCambio]
       });
     }
+
+    // Si el envío fue entregado, registrar en historial_envios para el dataset de IA
+    if (envio.estado === 'entregado') {
+      await client.execute({
+        sql: `INSERT INTO historial_envios (
+          trackingId, remitente, destinatario, producto,
+          direccionEntrega, estadoFinal, fechaCreacion, fechaEntrega
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          envio.trackingId,
+          envio.remitente,
+          envio.destinatario,
+          envio.producto,
+          envio.direccionEntrega,
+          'entregado',
+          envio.fechaCreacion,
+          envio.fechaActualizacion
+        ]
+      });
+    }
   }
 
   const resumenRoles = await client.execute(`
