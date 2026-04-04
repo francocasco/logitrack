@@ -74,6 +74,34 @@
       font-size: 12px;
       color: var(--text-muted);
     }
+
+    .login-signup {
+      text-align: center;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .login-signup p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0 0 8px 0;
+    }
+
+    .login-signup a {
+      display: inline-block;
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 8px 16px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+
+    .login-signup a:hover {
+      background-color: rgba(255, 193, 7, 0.1);
+    }
   </style>
 </head>
 <body>
@@ -104,6 +132,11 @@
         <button id="btn-login" class="btn btn-primary btn-login" onclick="iniciarSesion()">
           Ingresar →
         </button>
+
+        <div class="login-signup">
+          <p>¿No tenés cuenta?</p>
+          <a href="/register.html">Crear cuenta →</a>
+        </div>
       </div>
 
       <div class="login-footer">LogiTrack MVP · Acceso restringido</div>

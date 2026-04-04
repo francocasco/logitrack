@@ -68,10 +68,31 @@
   </div>
 
   <script>
+    // Expresiones regulares para validación global
+    const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const REGEX_TELEFONO = /^\+?[\d\s\-\(\)]{6,}$/;
+    const REGEX_PASSWORD = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+
     function showAlert(msg, tipo = 'error') {
       const el = document.getElementById('alert-register');
       el.className = `alert alert-${tipo} show`;
       el.textContent = msg;
+    }
+
+    function validarEmail(email) {
+      return REGEX_EMAIL.test(email);
+    }
+
+    function validarTelefono(telefono) {
+      return REGEX_TELEFONO.test(telefono);
+    }
+
+    function validarNombreUsuario(nombreUsuario) {
+      return nombreUsuario.length >= 5;
+    }
+
+    function validarPassword(password) {
+      return REGEX_PASSWORD.test(password);
     }
 
     async function registrar() {
@@ -83,6 +104,26 @@
 
       if (!email || !telefono || !nombreUsuario || !password) {
         showAlert('Todos los campos son obligatorios.');
+        return;
+      }
+
+      if (!validarEmail(email)) {
+        showAlert('Por favor ingresa un email válido (ej: usuario@ejemplo.com).');
+        return;
+      }
+
+      if (!validarTelefono(telefono)) {
+        showAlert('Por favor ingresa un número de teléfono válido. Debe tener al menos 6 dígitos (ej: +54 11 1234-5678).');
+        return;
+      }
+
+      if (!validarNombreUsuario(nombreUsuario)) {
+        showAlert('El nombre de usuario debe tener al menos 5 caracteres.');
+        return;
+      }
+
+      if (!validarPassword(password)) {
+        showAlert('La contraseña debe tener un mínimo de 8 caracteres, al menos una mayúscula y al menos un número.');
         return;
       }
 
