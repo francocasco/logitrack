@@ -6,8 +6,70 @@ const paginacion = {
   totalPaginas: 0,
 };
 
+const PAGINAS_RESTRINGIDAS_CLIENTE = new Set([
+  "page-crear",
+  "page-usuarios",
+  "page-setup",
+]);
+
+const PAGINAS_RESTRINGIDAS_OPERADOR = new Set(["page-usuarios"]);
+
+function mostrarPantallaError({ code = "403", title, message }) {
+  document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+  document.querySelectorAll(".nav a").forEach((a) => a.classList.remove("active"));
+
+  const page = document.getElementById("page-error");
+  if (page) page.classList.add("active");
+
+  const codeEl = document.getElementById("error-code");
+  const titleEl = document.getElementById("error-title");
+  const msgEl = document.getElementById("error-message");
+
+  if (codeEl) codeEl.textContent = code;
+  if (titleEl) titleEl.textContent = title || "Acceso denegado";
+  if (msgEl) {
+    msgEl.textContent =
+      message || "No tenés permisos para acceder a esta sección.";
+  }
+}
+
+function mensajePermisoPorPagina(pageId) {
+  const mensajes = {
+    "page-crear": "No tenés permisos para acceder a Nuevo envío.",
+    "page-usuarios": "No tenés permisos para acceder a Usuarios.",
+    "page-setup": "No tenés permisos para acceder a Setup de cliente.",
+  };
+
+  return mensajes[pageId] || "No tenés permisos para acceder a esta sección.";
+}
+
 // ─── NAVEGACIÓN ───────────────────────────────────────────────
 function navigate(pageId) {
+  const usuario = window.usuarioActual;
+  if (
+    usuario?.rol === "Cliente" &&
+    PAGINAS_RESTRINGIDAS_CLIENTE.has(pageId)
+  ) {
+    mostrarPantallaError({
+      code: "403",
+      title: "Acceso denegado",
+      message: mensajePermisoPorPagina(pageId),
+    });
+    return;
+  }
+
+  if (
+    usuario?.rol === "Operador" &&
+    PAGINAS_RESTRINGIDAS_OPERADOR.has(pageId)
+  ) {
+    mostrarPantallaError({
+      code: "403",
+      title: "Acceso denegado",
+      message: mensajePermisoPorPagina(pageId),
+    });
+    return;
+  }
+
   document
     .querySelectorAll(".page")
     .forEach((p) => p.classList.remove("active"));
@@ -155,6 +217,9 @@ async function crearEnvio(e) {
       window.location.href = "/login.html";
       return;
     }
+    if (res.status === 403) {
+      throw new Error("No tenés permisos para crear envíos.");
+    }
     if (!res.ok) throw new Error(data.error);
 
     showAlert(
@@ -241,6 +306,9 @@ async function cargarUsuarios() {
     if (res.status === 401) {
       window.location.href = "/login.html";
       return;
+    }
+    if (res.status === 403) {
+      throw new Error("No tenés permisos para acceder a usuarios.");
     }
     if (!res.ok)
       throw new Error(data.error || "No se pudieron cargar los usuarios.");
@@ -529,8 +597,11 @@ async function verDetalle(trackingId) {
     const ESTADOS = ["creado", "en tránsito", "en sucursal", "entregado"];
     const ICONOS = ["📋", "🚚", "🏢", "✅"];
     const idx = ESTADOS.indexOf(e.estado);
-    const puedeAvanzar = idx < ESTADOS.length - 1;
-    const puedeEditar = ["Operador", "Supervisor"].includes(usuarioActual.rol);
+    const puedeGestionarEnvio = ["Operador", "Supervisor"].includes(
+      usuarioActual.rol,
+    );
+    const puedeAvanzar = puedeGestionarEnvio && idx < ESTADOS.length - 1;
+    const puedeEditar = puedeGestionarEnvio;
     const direccionEntrega = e.direccionEntrega?.trim()
       ? e.direccionEntrega
       : "Sin especificar";
@@ -644,9 +715,11 @@ async function verDetalle(trackingId) {
               ⚡ Avanzar estado
             </button>
           `
-              : `
+              : idx === ESTADOS.length - 1
+                ? `
             <span style="color:var(--green);font-size:13px">✅ Entrega completada</span>
           `
+                : ""
           }
           <button class="btn btn-secondary" onclick="navigate('page-lista')">← Volver a lista</button>
         </div>
@@ -722,23 +795,28 @@ async function cargarSetup() {
   select.innerHTML = '<option value="">Cargando usuarios...</option>';
 
   try {
-    const res = await fetchAuth("/api/usuarios");
+    const res = await fetchAuth("/api/clientes/setup");
     const data = await res.json();
+    if (res.status === 401) {
+      window.location.href = "/login.html";
+      return;
+    }
+    if (res.status === 403) {
+      throw new Error("No tenés permisos para acceder al setup de cliente.");
+    }
     if (!res.ok) throw new Error(data.error);
 
-    const { usuarios } = data;
+    const { clientes } = data;
     select.innerHTML = '<option value="">-- Seleccioná un cliente --</option>';
 
-    usuarios
-      .filter((u) => u.rol === "Cliente")
-      .forEach((u) => {
-        const opt = document.createElement("option");
-        opt.value = u.id;
-        opt.textContent = u.nombreUsuario;
-        opt.dataset.nombre = u.nombre || "";
-        opt.dataset.direccion = u.direccion || "";
-        select.appendChild(opt);
-      });
+    clientes.forEach((u) => {
+      const opt = document.createElement("option");
+      opt.value = u.id;
+      opt.textContent = u.nombreUsuario;
+      opt.dataset.nombre = u.nombre || "";
+      opt.dataset.direccion = u.direccion || "";
+      select.appendChild(opt);
+    });
 
     select.addEventListener("change", () => {
       const opt = select.options[select.selectedIndex];
@@ -800,6 +878,9 @@ async function guardarSetupCliente() {
       window.location.href = "/login.html";
       return;
     }
+    if (res.status === 403) {
+      throw new Error("No tenés permisos para actualizar perfiles de cliente.");
+    }
     if (!res.ok) throw new Error(data.error);
 
     showAlert(
@@ -842,7 +923,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (e.key === "Enter") buscarPorDestinatario();
     });
 
-  navigate("page-crear");
+  navigate("page-buscar");
 });
 
 document.addEventListener("click", async (e) => {

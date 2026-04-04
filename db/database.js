@@ -297,7 +297,7 @@ async function verificarToken(token) {
   if (!sesion) return null;
 
   const resUsuario = await db.execute({
-    sql: "SELECT id, email, rol FROM usuarios WHERE id = ?",
+    sql: "SELECT id, email, rol, nombre, direccion FROM usuarios WHERE id = ?",
     args: [sesion.usuarioId],
   });
 
@@ -343,21 +343,38 @@ async function crearEnvio(
   return trackingId;
 }
 
-async function listarEnvios(pagina = 1, porPagina = 10, estado = null) {
+async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rolUsuario = null, nombreUsuario = null, direccionUsuario = null) {
   const offset = (pagina - 1) * porPagina;
 
-  const whereClause = estado ? "WHERE estado = ?" : "";
-  const args = estado ? [estado, porPagina, offset] : [porPagina, offset];
-  const argsCount = estado ? [estado] : [];
+  let whereConditions = [];
+  let args = [];
+
+  if (estado) {
+    whereConditions.push("estado = ?");
+    args.push(estado);
+  }
+
+  // Si es Cliente, filtrar solo envíos donde está involucrado como remitente o destinatario
+  if (rolUsuario === "Cliente" && nombreUsuario && direccionUsuario) {
+    whereConditions.push(
+      `(` +
+      `(remitente = ? AND direccionRemitente = ?) OR ` +
+      `(destinatario = ? AND direccionEntrega = ?)` +
+      `)`
+    );
+    args.push(nombreUsuario, direccionUsuario, nombreUsuario, direccionUsuario);
+  }
+
+  const whereClause = whereConditions.length > 0 ? "WHERE " + whereConditions.join(" AND ") : "";
 
   const resEnvios = await db.execute({
     sql: `SELECT * FROM envios ${whereClause} ORDER BY fechaCreacion DESC LIMIT ? OFFSET ?`,
-    args,
+    args: [...args, porPagina, offset],
   });
 
   const resTotal = await db.execute({
     sql: `SELECT COUNT(*) as total FROM envios ${whereClause}`,
-    args: argsCount,
+    args: args,
   });
 
   const total = Number(resTotal.rows[0].total);
@@ -373,10 +390,26 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null) {
   };
 }
 
-async function buscarPorTracking(trackingId) {
+async function buscarPorTracking(trackingId, rolUsuario = null, nombreUsuario = null, direccionUsuario = null) {
+  let whereConditions = ['trackingId = ?'];
+  let args = [trackingId];
+
+  // Si es Cliente, filtrar para asegurar involucración
+  if (rolUsuario === 'Cliente' && nombreUsuario && direccionUsuario) {
+    whereConditions.push(
+      `(` +
+      `(remitente = ? AND direccionRemitente = ?) OR ` +
+      `(destinatario = ? AND direccionEntrega = ?)` +
+      `)`
+    );
+    args.push(nombreUsuario, direccionUsuario, nombreUsuario, direccionUsuario);
+  }
+
+  const whereClause = whereConditions.join(' AND ');
+
   const res = await db.execute({
-    sql: "SELECT * FROM envios WHERE trackingId = ?",
-    args: [trackingId],
+    sql: `SELECT * FROM envios WHERE ${whereClause}`,
+    args,
   });
   return res.rows[0] || null;
 }
@@ -455,6 +488,16 @@ async function listarUsuarios() {
   return res.rows;
 }
 
+async function listarClientesParaSetup() {
+  const res = await db.execute({
+    sql: `SELECT id, nombreUsuario, nombre, direccion
+          FROM usuarios
+          WHERE rol = 'Cliente'
+          ORDER BY nombreUsuario ASC`
+  });
+  return res.rows;
+}
+
 async function actualizarRolUsuario(id, rol) {
   await db.execute({
     sql: "UPDATE usuarios SET rol = ? WHERE id = ?",
@@ -463,12 +506,28 @@ async function actualizarRolUsuario(id, rol) {
 }
 
 // ─── BUSCAR POR DESTINATARIO ──────────────────────────────────
-async function buscarPorDestinatario(nombre) {
+async function buscarPorDestinatario(nombre, rolUsuario = null, nombreUsuario = null, direccionUsuario = null) {
+  let whereConditions = ['LOWER(destinatario) LIKE LOWER(?)'];
+  let args = [`%${nombre}%`];
+
+  // Si es Cliente, filtrar para asegurar involucración
+  if (rolUsuario === 'Cliente' && nombreUsuario && direccionUsuario) {
+    whereConditions.push(
+      `(` +
+      `(remitente = ? AND direccionRemitente = ?) OR ` +
+      `(destinatario = ? AND direccionEntrega = ?)` +
+      `)`
+    );
+    args.push(nombreUsuario, direccionUsuario, nombreUsuario, direccionUsuario);
+  }
+
+  const whereClause = whereConditions.join(' AND ');
+
   const res = await db.execute({
     sql: `SELECT * FROM envios 
-          WHERE LOWER(destinatario) LIKE LOWER(?) 
+          WHERE ${whereClause}
           ORDER BY fechaCreacion DESC`,
-    args: [`%${nombre}%`],
+    args,
   });
   return res.rows;
 }
@@ -653,6 +712,7 @@ module.exports = {
   ESTADOS,
   crearUsuario,
   listarUsuarios,
+  listarClientesParaSetup,
   actualizarRolUsuario,
   actualizarDatosUsuario,
   registrarHistorial,

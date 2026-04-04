@@ -19,9 +19,9 @@
 
         <ul class="nav">
           <li>
-            <a href="#" data-page="page-crear">
-              <span class="nav-icon">✏️</span>
-              <span>Nuevo envío</span>
+            <a href="#" data-page="page-buscar">
+              <span class="nav-icon">🔍</span>
+              <span>Buscar</span>
             </a>
           </li>
           <li>
@@ -31,13 +31,13 @@
             </a>
           </li>
           <li>
-            <a href="#" data-page="page-buscar">
-              <span class="nav-icon">🔍</span>
-              <span>Buscar</span>
+            <a href="#" data-page="page-crear">
+              <span class="nav-icon">✏️</span>
+              <span>Nuevo envío</span>
             </a>
           </li>
           <li>
-            <a data-page="page-usuarios">
+            <a href="#" data-page="page-usuarios">
               <span class="nav-icon">👥</span>
               <span>Usuarios</span>
             </a>
@@ -336,6 +336,19 @@
               disabled
             >
               💾 Guardar
+            </button>
+          </div>
+        </section>
+
+        <section class="page" id="page-error">
+          <div class="error-screen">
+            <div class="error-code" id="error-code">403</div>
+            <h2 id="error-title">Acceso denegado</h2>
+            <p id="error-message">
+              No tenés permisos para acceder a esta sección.
+            </p>
+            <button class="btn btn-secondary" onclick="navigate('page-buscar')">
+              ← Volver a Buscar
             </button>
           </div>
         </section>

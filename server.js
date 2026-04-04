@@ -53,6 +53,15 @@ async function requireAuth(req, res, next) {
   next();
 }
 
+function requireRoles(...rolesPermitidos) {
+  return (req, res, next) => {
+    if (!rolesPermitidos.includes(req.usuario?.rol)) {
+      return res.status(403).json({ error: 'No tenés permisos para acceder a este recurso.' });
+    }
+    next();
+  };
+}
+
 // ─────────────────────────────────────────
 //  RUTAS DE REGISTRO (públicas)
 // ─────────────────────────────────────────
@@ -277,6 +286,16 @@ app.get("/api/usuarios", requireAuth, async (req, res) => {
   }
 });
 
+app.get('/api/clientes/setup', requireAuth, requireRoles('Operador', 'Supervisor'), async (req, res) => {
+  try {
+    const clientes = await db.listarClientesParaSetup();
+    res.json({ clientes });
+  } catch (err) {
+    console.error('Error al listar clientes para setup:', err.message);
+    res.status(500).json({ error: 'No se pudieron obtener los clientes para setup.' });
+  }
+});
+
 /**
  * @swagger
  * /api/usuarios/{id}/rol:
@@ -353,7 +372,7 @@ app.patch("/api/usuarios/:id/rol", requireAuth, async (req, res) => {
  *       500:
  *         description: Error al actualizar
  */
-app.patch("/api/usuarios/:id/perfil", requireAuth, async (req, res) => {
+app.patch("/api/usuarios/:id/perfil", requireAuth, requireRoles("Operador", "Supervisor"), async (req, res) => {
   const { nombre, direccion } = req.body;
 
   if (!nombre?.trim() || !direccion?.trim()) {
@@ -415,7 +434,7 @@ app.patch("/api/usuarios/:id/perfil", requireAuth, async (req, res) => {
  *       400:
  *         description: Datos inválidos
  */
-app.post("/api/envios", requireAuth, async (req, res) => {
+app.post("/api/envios", requireAuth, requireRoles("Operador", "Supervisor"), async (req, res) => {
   const {
     remitente,
     destinatario,
@@ -517,7 +536,14 @@ app.get("/api/envios", requireAuth, async (req, res) => {
   const estado = req.query.estado || null;
 
   try {
-    const resultado = await db.listarEnvios(pagina, porPagina, estado);
+    const resultado = await db.listarEnvios(
+      pagina,
+      porPagina,
+      estado,
+      req.usuario.rol,
+      req.usuario.nombre,
+      req.usuario.direccion
+    );
     res.json(resultado);
   } catch (err) {
     console.error("Error al listar envíos:", err.message);
@@ -564,7 +590,12 @@ app.get("/api/envios/buscar/destinatario", requireAuth, async (req, res) => {
   }
 
   try {
-    const envios = await db.buscarPorDestinatario(nombre.trim());
+    const envios = await db.buscarPorDestinatario(
+      nombre.trim(),
+      req.usuario.rol,
+      req.usuario.nombre,
+      req.usuario.direccion
+    );
 
     if (!envios.length) {
       return res
@@ -611,7 +642,12 @@ app.get("/api/envios/:trackingId", requireAuth, async (req, res) => {
   }
 
   try {
-    const envio = await db.buscarPorTracking(trackingId);
+    const envio = await db.buscarPorTracking(
+      trackingId,
+      req.usuario.rol,
+      req.usuario.nombre,
+      req.usuario.direccion
+    );
     if (!envio) {
       return res.status(404).json({ error: "Envío no encontrado." });
     }
@@ -690,6 +726,10 @@ app.patch("/api/envios/:trackingId", requireAuth, async (req, res) => {
  *         description: Envío no encontrado
  */
 app.patch("/api/envios/:trackingId/estado", requireAuth, async (req, res) => {
+  if (!["Operador", "Supervisor"].includes(req.usuario.rol)) {
+    return res.status(403).json({ error: "No tenés permisos para cambiar el estado del envío." });
+  }
+
   try {
     const resultado = await db.cambiarEstado(
       req.params.trackingId.toUpperCase(),
