@@ -340,6 +340,12 @@ async function crearEnvio(
     ],
   });
 
+  await db.execute({
+    sql: `INSERT INTO historial_estados (trackingId, estado, fechaCambio)
+          VALUES (?, 'creado', ?)`,
+    args: [trackingId, ahora],
+  });
+
   return trackingId;
 }
 
@@ -570,7 +576,14 @@ async function obtenerHistorial() {
 }
 */
 
-async function obtenerHistorial(trackingId) {
+async function obtenerHistorial(trackingId = null) {
+  if (!trackingId) {
+    const res = await db.execute(
+      "SELECT * FROM historial_envios ORDER BY fechaEntrega DESC",
+    );
+    return res.rows;
+  }
+
   const id = trackingId.toUpperCase();
 
   const res = await db.execute({
@@ -580,7 +593,7 @@ async function obtenerHistorial(trackingId) {
       WHERE trackingId = ?
       ORDER BY fechaCambio DESC
     `,
-    args: [id]
+    args: [id],
   });
 
   return res.rows;

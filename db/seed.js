@@ -97,6 +97,84 @@ const PRODUCTOS = [
 
 const ESTADOS = ['creado', 'en tránsito', 'en sucursal', 'entregado'];
 
+function randomEnRango(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+function construirTimelineRelativo(estadoFinal) {
+  const indiceFinal = ESTADOS.indexOf(estadoFinal);
+  if (indiceFinal < 0) {
+    throw new Error(`Estado final inválido para timeline: ${estadoFinal}`);
+  }
+
+  const ahoraMs = Date.now();
+  const diaMs = 24 * 60 * 60 * 1000;
+
+  // Referencias relativas al día de ejecución del seed con variación:
+  // creado ~7 días, tránsito ~4 días, sucursal ~2 días, entregado ~0-1 día.
+  const diasCreado = randomEnRango(6.0, 8.8);
+  const diasTransito = Math.max(0.2, diasCreado - randomEnRango(2.0, 3.8));
+  const diasSucursal = Math.max(0.1, diasTransito - randomEnRango(1.2, 2.6));
+  const diasEntregado = Math.max(0.0, diasSucursal - randomEnRango(0.4, 1.2));
+
+  const diasPorEstado = {
+    creado: diasCreado,
+    'en tránsito': diasTransito,
+    'en sucursal': diasSucursal,
+    entregado: diasEntregado
+  };
+
+  const timeline = [];
+  for (let i = 0; i <= indiceFinal; i += 1) {
+    const estado = ESTADOS[i];
+    const baseMs = ahoraMs - (diasPorEstado[estado] * diaMs);
+    const jitterMs = randomEnRango(-25, 25) * 60 * 1000; // +-25 min
+
+    timeline.push({
+      estado,
+      fechaCambio: new Date(baseMs + jitterMs).toISOString()
+    });
+  }
+
+  // Asegurar orden cronológico creciente para evitar solapes por jitter.
+  timeline.sort((a, b) => new Date(a.fechaCambio) - new Date(b.fechaCambio));
+
+  return timeline;
+}
+
+function construirHistorialEstados(envio) {
+  if (Array.isArray(envio.historialEstados) && envio.historialEstados.length > 0) {
+    return envio.historialEstados;
+  }
+
+  const indiceFinal = ESTADOS.indexOf(envio.estado);
+  const fechaInicioMs = new Date(envio.fechaCreacion).getTime();
+  const fechaFinMs = new Date(envio.fechaActualizacion).getTime();
+  const duracionMs = Math.max(fechaFinMs - fechaInicioMs, 0);
+
+  if (indiceFinal <= 0) {
+    return [{ estado: 'creado', fechaCambio: envio.fechaCreacion }];
+  }
+
+  const historial = [];
+  const pasoMs = duracionMs > 0
+    ? Math.max(Math.floor(duracionMs / indiceFinal), 60 * 1000)
+    : 60 * 1000;
+
+  for (let i = 0; i <= indiceFinal; i += 1) {
+    const fechaMs = i === indiceFinal
+      ? fechaFinMs
+      : Math.min(fechaInicioMs + (pasoMs * i), fechaFinMs);
+
+    historial.push({
+      estado: ESTADOS[i],
+      fechaCambio: new Date(fechaMs).toISOString()
+    });
+  }
+
+  return historial;
+}
+
 function generarTrackingId(index) {
   const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const primeras = letras[Math.floor(Math.random() * letras.length)] + 
@@ -119,16 +197,11 @@ function construirEnvios(cantidad, usuarios) {
     const remitente = usuarios[remitenteIdx];
     const destinatario = usuarios[destinatarioIdx];
     
-    // Generar fechas realistas (últimos 30 días)
-    const ahora = new Date();
-    const dias = Math.floor(Math.random() * 30);
-    const horas = Math.floor(Math.random() * 24);
-    const fechaCreacion = new Date(ahora.getTime() - dias * 24 * 60 * 60 * 1000 - horas * 60 * 60 * 1000);
-    
-    const fechaActualizacion = new Date(fechaCreacion.getTime() + Math.random() * 10 * 24 * 60 * 60 * 1000);
-    
     const producto = PRODUCTOS[Math.floor(Math.random() * PRODUCTOS.length)];
     const estado = ESTADOS[Math.floor(Math.random() * ESTADOS.length)];
+    const historialEstados = construirTimelineRelativo(estado);
+    const fechaCreacion = historialEstados[0].fechaCambio;
+    const fechaActualizacion = historialEstados[historialEstados.length - 1].fechaCambio;
 
     return {
       trackingId: generarTrackingId(i + 1),
@@ -136,12 +209,13 @@ function construirEnvios(cantidad, usuarios) {
       destinatario: destinatario.nombre || destinatario.nombreUsuario,
       producto,
       estado,
-      fechaCreacion: fechaCreacion.toISOString(),
-      fechaActualizacion: fechaActualizacion.toISOString(),
+      fechaCreacion,
+      fechaActualizacion,
       direccionRemitente: remitente.direccion || 'Dirección no especificada',
       contactoRemitente: remitente.telefono,
       direccionEntrega: destinatario.direccion || 'Dirección no especificada',
-      contactoDestinatario: destinatario.telefono
+      contactoDestinatario: destinatario.telefono,
+      historialEstados
     };
   });
 }
@@ -159,6 +233,9 @@ async function sembrarUsuarios() {
   const usuariosSemilla = [...supervisores, ...operadores, ...clientes];
 
   await client.execute('DELETE FROM sesiones');
+  await client.execute('DELETE FROM historial_estados');
+  await client.execute('DELETE FROM historial_envios');
+  await client.execute('DELETE FROM log_estructuracion');
   await client.execute('DELETE FROM usuarios');
   await client.execute('DELETE FROM envios');
 
@@ -226,6 +303,15 @@ async function sembrarUsuarios() {
     });
 
     enviosInsertados += Number(resultado.rowsAffected || 0);
+
+    const historialEstados = construirHistorialEstados(envio);
+    for (const entrada of historialEstados) {
+      await client.execute({
+        sql: `INSERT INTO historial_estados (trackingId, estado, fechaCambio)
+              VALUES (?, ?, ?)`,
+        args: [envio.trackingId, entrada.estado, entrada.fechaCambio]
+      });
+    }
   }
 
   const resumenRoles = await client.execute(`

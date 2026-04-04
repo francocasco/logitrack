@@ -762,17 +762,33 @@ app.patch("/api/envios/:trackingId/estado", requireAuth, async (req, res) => {
 });
 
 // GET /api/envios/:trackingId/historial
-app.get("/api/envios/:trackingId/historial", requireAuth, async (req, res) => {
-  try {
-    const historial = await db.obtenerHistorial(
-      req.params.trackingId.toUpperCase(),
-    );
-    res.json(historial);
-  } catch (err) {
-    console.error("Error al obtener historial:", err.message);
-    res.status(500).json({ error: "No se pudo obtener el historial." });
-  }
-});
+app.get(
+  "/api/envios/:trackingId/historial",
+  requireAuth,
+  requireRoles("Operador", "Supervisor"),
+  async (req, res) => {
+    const trackingId = req.params.trackingId.toUpperCase();
+
+    if (!/^[A-Z]{2}-\d{6}$/.test(trackingId)) {
+      return res
+        .status(400)
+        .json({ error: "El Tracking ID no es válido. Debe tener el formato: XX-XXXXXX." });
+    }
+
+    try {
+      const envio = await db.buscarPorTracking(trackingId);
+      if (!envio) {
+        return res.status(404).json({ error: "Envío no encontrado." });
+      }
+
+      const historial = await db.obtenerHistorial(trackingId);
+      res.json(historial);
+    } catch (err) {
+      console.error("Error al obtener historial:", err.message);
+      res.status(500).json({ error: "No se pudo obtener el historial." });
+    }
+  },
+);
 
 // GET /api/historial
 app.get("/api/historial", requireAuth, async (req, res) => {

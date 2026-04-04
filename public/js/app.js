@@ -13,6 +13,10 @@ const PAGINAS_RESTRINGIDAS_CLIENTE = new Set([
 ]);
 
 const PAGINAS_RESTRINGIDAS_OPERADOR = new Set(["page-usuarios"]);
+const ESTADOS_ENVIO = ["creado", "en tránsito", "en sucursal", "entregado"];
+const ICONOS_ESTADO_ENVIO = ["📋", "🚚", "🏢", "✅"];
+
+let detalleEnvioDraft = null;
 
 function mostrarPantallaError({ code = "403", title, message }) {
   document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
@@ -594,36 +598,72 @@ async function verDetalle(trackingId) {
     }
     if (!res.ok) throw new Error(e.error);
 
-    const ESTADOS = ["creado", "en tránsito", "en sucursal", "entregado"];
-    const ICONOS = ["📋", "🚚", "🏢", "✅"];
-    const idx = ESTADOS.indexOf(e.estado);
-    const puedeGestionarEnvio = ["Operador", "Supervisor"].includes(
-      usuarioActual.rol,
-    );
-    const puedeAvanzar = puedeGestionarEnvio && idx < ESTADOS.length - 1;
-    const puedeEditar = puedeGestionarEnvio;
-    const direccionEntrega = e.direccionEntrega?.trim()
-      ? e.direccionEntrega
-      : "Sin especificar";
-    const direccionRemitente = e.direccionRemitente?.trim()
-      ? e.direccionRemitente
-      : "Sin especificar";
-    const contactoRemitente = e.contactoRemitente?.trim()
-      ? e.contactoRemitente
-      : "Sin especificar";
-    const contactoDestinatario = e.contactoDestinatario?.trim()
-      ? e.contactoDestinatario
-      : "Sin especificar";
+    detalleEnvioDraft = {
+      trackingId: e.trackingId,
+      usuarioActual,
+      envioBase: e,
+      destinatarioDraft: e.destinatario,
+      direccionEntregaDraft: e.direccionEntrega || "",
+      estadoActualDraft: e.estado,
+      avancesPendientes: 0,
+    };
 
-    const stepsHtml = ESTADOS.map((s, i) => {
-      const cls = i < idx ? "done" : i === idx ? "current" : "";
-      return `<div class="step ${cls}">
-        <div class="step-dot">${i <= idx ? ICONOS[i] : ""}</div>
-        <span class="step-label">${s}</span>
-      </div>`;
-    }).join("");
+    renderDetalleEnvio(detalleEnvioDraft);
+  } catch (err) {
+    container.innerHTML = `<div class="alert alert-error show">❌ ${err.message}</div>`;
+  }
+}
 
-    container.innerHTML = `
+function sincronizarDetalleEnvioDraft() {
+  if (!detalleEnvioDraft) return;
+
+  const destinatarioInput = document.getElementById("editar-destinatario");
+  const direccionInput = document.getElementById("editar-direccion");
+
+  if (destinatarioInput) {
+    detalleEnvioDraft.destinatarioDraft = destinatarioInput.value;
+  }
+  if (direccionInput) {
+    detalleEnvioDraft.direccionEntregaDraft = direccionInput.value;
+  }
+}
+
+function renderDetalleEnvio(draft) {
+  const container = document.getElementById("detalle-container");
+  if (!container || !draft) return;
+
+  const { envioBase: e, usuarioActual } = draft;
+  const idx = ESTADOS_ENVIO.indexOf(draft.estadoActualDraft);
+  const puedeGestionarEnvio = ["Operador", "Supervisor"].includes(
+    usuarioActual.rol,
+  );
+  const puedeConsultarHistorial = ["Operador", "Supervisor"].includes(
+    usuarioActual.rol,
+  );
+  const puedeAvanzar = puedeGestionarEnvio && idx < ESTADOS_ENVIO.length - 1;
+  const puedeEditar = puedeGestionarEnvio;
+  const direccionEntrega = draft.direccionEntregaDraft?.trim()
+    ? draft.direccionEntregaDraft
+    : "Sin especificar";
+  const direccionRemitente = e.direccionRemitente?.trim()
+    ? e.direccionRemitente
+    : "Sin especificar";
+  const contactoRemitente = e.contactoRemitente?.trim()
+    ? e.contactoRemitente
+    : "Sin especificar";
+  const contactoDestinatario = e.contactoDestinatario?.trim()
+    ? e.contactoDestinatario
+    : "Sin especificar";
+
+  const stepsHtml = ESTADOS_ENVIO.map((s, i) => {
+    const cls = i < idx ? "done" : i === idx ? "current" : "";
+    return `<div class="step ${cls}">
+      <div class="step-dot">${i <= idx ? ICONOS_ESTADO_ENVIO[i] : ""}</div>
+      <span class="step-label">${s}</span>
+    </div>`;
+  }).join("");
+
+  container.innerHTML = `
       <div class="card">
         <div class="detail-grid">
           <div class="detail-item" style="grid-column:1/-1">
@@ -638,7 +678,7 @@ async function verDetalle(trackingId) {
           </div>
           <div class="detail-item">
             <label>Destinatario</label>
-            <div class="value">${e.destinatario}</div>
+            <div class="value">${escapeHtml(draft.destinatarioDraft)}</div>
           </div>
 
           <!-- Segunda fila: contactos -->
@@ -668,7 +708,12 @@ async function verDetalle(trackingId) {
           </div>
           <div class="detail-item">
             <label>Estado actual</label>
-            <div class="value">${badgeEstado(e.estado)}</div>
+            <div class="value">${badgeEstado(draft.estadoActualDraft)}</div>
+            ${
+              draft.avancesPendientes > 0
+                ? `<div class="detail-draft-note">Hay ${draft.avancesPendientes} cambio${draft.avancesPendientes !== 1 ? "s" : ""} de estado pendiente${draft.avancesPendientes !== 1 ? "s" : ""} de guardar.</div>`
+                : ""
+            }
           </div>
           <div class="detail-item">
             <label>Fecha de creación</label>
@@ -688,14 +733,14 @@ async function verDetalle(trackingId) {
             <div class="form-row">
               <div class="form-group">
                 <label for="editar-destinatario">Destinatario</label>
-                <input id="editar-destinatario" type="text" value="${escapeHtml(e.destinatario)}" />
+                <input id="editar-destinatario" type="text" value="${escapeHtml(draft.destinatarioDraft)}" />
               </div>
               <div class="form-group">
                 <label for="editar-direccion">Dirección de entrega</label>
-                <input id="editar-direccion" type="text" value="${escapeHtml(e.direccionEntrega || "")}" placeholder="Ingresá la dirección de entrega" />
+                <input id="editar-direccion" type="text" value="${escapeHtml(draft.direccionEntregaDraft || "")}" placeholder="Ingresá la dirección de entrega" />
               </div>
             </div>
-            <button class="btn btn-primary" onclick="guardarCambiosEnvio('${e.trackingId}')">💾 Guardar cambios</button>
+            <button id="btn-guardar-detalle" class="btn btn-primary" onclick="guardarCambiosEnvio('${e.trackingId}')">💾 Guardar cambios</button>
           </div>
         `
             : ""
@@ -704,10 +749,34 @@ async function verDetalle(trackingId) {
         <div class="timeline">
           <h3>Progreso del envío</h3>
           <div class="timeline-steps">${stepsHtml}</div>
+          ${
+            puedeGestionarEnvio
+              ? `
+            <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap">
+              <button
+                id="btn-guardar-estado"
+                class="btn btn-primary"
+                onclick="guardarCambiosEstado('${e.trackingId}')"
+                ${draft.avancesPendientes === 0 ? "disabled" : ""}
+              >
+                💾 Guardar cambios de estado
+              </button>
+            </div>
+          `
+              : ""
+          }
         </div>
 
         <div style="margin-top:24px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
-          <div id="alert-detalle" class="alert"></div>
+          ${
+            puedeConsultarHistorial
+              ? `
+            <button class="btn btn-secondary" onclick="toggleHistorialEnvio('${e.trackingId}')">
+              🕘 Historial
+            </button>
+          `
+              : ""
+          }
           ${
             puedeAvanzar
               ? `
@@ -715,7 +784,7 @@ async function verDetalle(trackingId) {
               ⚡ Avanzar estado
             </button>
           `
-              : idx === ESTADOS.length - 1
+              : idx === ESTADOS_ENVIO.length - 1
                 ? `
             <span style="color:var(--green);font-size:13px">✅ Entrega completada</span>
           `
@@ -723,18 +792,92 @@ async function verDetalle(trackingId) {
           }
           <button class="btn btn-secondary" onclick="navigate('page-lista')">← Volver a lista</button>
         </div>
+
+        <div id="alert-detalle" class="alert" style="margin-top:12px"></div>
+
+        ${
+          puedeConsultarHistorial
+            ? `
+          <div id="historial-detalle" class="timeline historial-panel" style="display:none"></div>
+        `
+            : ""
+        }
+      </div>
+    `;
+}
+
+async function toggleHistorialEnvio(trackingId) {
+  const panel = document.getElementById("historial-detalle");
+  if (!panel) return;
+
+  if (panel.dataset.loaded === "true") {
+    panel.style.display = panel.style.display === "none" ? "block" : "none";
+    return;
+  }
+
+  panel.style.display = "block";
+  panel.innerHTML = `
+    <h3>Historial del envío</h3>
+    <p style="color:var(--text-muted)">Cargando historial...</p>
+  `;
+
+  try {
+    const res = await fetchAuth(`/api/envios/${trackingId}/historial`);
+    const data = await res.json();
+
+    if (res.status === 401) {
+      window.location.href = "/login.html";
+      return;
+    }
+    if (!res.ok) throw new Error(data.error);
+
+    const historial = Array.isArray(data) ? data : data.historial || [];
+    panel.dataset.loaded = "true";
+
+    if (!historial.length) {
+      panel.innerHTML = `
+        <h3>Historial del envío</h3>
+        <div class="history-empty">
+          Todavía no hay cambios de estado registrados para este envío.
+        </div>
+      `;
+      return;
+    }
+
+    panel.innerHTML = `
+      <h3>Historial del envío</h3>
+      <div class="history-list">
+        ${historial
+          .map(
+            (item) => `
+          <div class="history-item">
+            <div class="history-state">${escapeHtml(item.estado)}</div>
+            <div class="history-date">${formatFecha(item.fechaCambio)}</div>
+          </div>
+        `,
+          )
+          .join("")}
       </div>
     `;
   } catch (err) {
-    container.innerHTML = `<div class="alert alert-error show">❌ ${err.message}</div>`;
+    panel.innerHTML = `
+      <h3>Historial del envío</h3>
+      <div class="history-empty" style="color:var(--red)">❌ ${err.message}</div>
+    `;
   }
 }
 
 async function guardarCambiosEnvio(trackingId) {
-  const destinatario =
-    document.getElementById("editar-destinatario")?.value.trim() || "";
-  const direccionEntrega =
-    document.getElementById("editar-direccion")?.value.trim() || "";
+  sincronizarDetalleEnvioDraft();
+
+  const destinatario = detalleEnvioDraft?.destinatarioDraft?.trim() || "";
+  const direccionEntrega = detalleEnvioDraft?.direccionEntregaDraft?.trim() || "";
+  const btn = document.getElementById("btn-guardar-detalle");
+
+  if (!detalleEnvioDraft || detalleEnvioDraft.trackingId !== trackingId) {
+    showAlert("alert-detalle", "❌ No se pudo recuperar el borrador del envío.", "error");
+    return;
+  }
 
   const errDestinatario = validarCampo(destinatario, "destinatario");
   const errDireccion = validarCampo(direccionEntrega, "dirección de entrega");
@@ -748,44 +891,108 @@ async function guardarCambiosEnvio(trackingId) {
     return;
   }
 
-  try {
-    const res = await fetchAuth(`/api/envios/${trackingId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ destinatario, direccionEntrega }),
-    });
-    const data = await res.json();
+  const huboCambiosDatos =
+    destinatario !== detalleEnvioDraft.envioBase.destinatario ||
+    direccionEntrega !== (detalleEnvioDraft.envioBase.direccionEntrega || "");
 
-    if (res.status === 401) {
-      window.location.href = "/login.html";
-      return;
+  if (!huboCambiosDatos) {
+    showAlert("alert-detalle", "ℹ️ No hay cambios de datos para guardar.", "info");
+    return;
+  }
+
+  try {
+    if (btn) btn.disabled = true;
+
+    if (huboCambiosDatos) {
+      const res = await fetchAuth(`/api/envios/${trackingId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ destinatario, direccionEntrega }),
+      });
+      const data = await res.json();
+
+      if (res.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (!res.ok) throw new Error(data.error);
     }
-    if (!res.ok) throw new Error(data.error);
 
     await verDetalle(trackingId);
-    showAlert("alert-detalle", `✅ ${data.mensaje}`, "success");
+    showAlert("alert-detalle", "✅ Datos del envío actualizados correctamente.", "success");
   } catch (err) {
     showAlert("alert-detalle", `❌ ${err.message}`, "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function guardarCambiosEstado(trackingId) {
+  if (!detalleEnvioDraft || detalleEnvioDraft.trackingId !== trackingId) {
+    showAlert("alert-detalle", "❌ No se pudo recuperar el borrador del envío.", "error");
+    return;
+  }
+
+  const avancesPendientes = detalleEnvioDraft.avancesPendientes;
+  const btn = document.getElementById("btn-guardar-estado");
+
+  if (avancesPendientes === 0) {
+    showAlert("alert-detalle", "ℹ️ No hay cambios de estado para guardar.", "info");
+    return;
+  }
+
+  try {
+    if (btn) btn.disabled = true;
+
+    for (let i = 0; i < avancesPendientes; i += 1) {
+      const resEstado = await fetchAuth(`/api/envios/${trackingId}/estado`, {
+        method: "PATCH",
+      });
+      const dataEstado = await resEstado.json();
+
+      if (resEstado.status === 401) {
+        window.location.href = "/login.html";
+        return;
+      }
+      if (!resEstado.ok) throw new Error(dataEstado.error);
+    }
+
+    await verDetalle(trackingId);
+    showAlert(
+      "alert-detalle",
+      `✅ ${avancesPendientes} avance${avancesPendientes !== 1 ? "s" : ""} de estado guardado${avancesPendientes !== 1 ? "s" : ""} correctamente.`,
+      "success",
+    );
+  } catch (err) {
+    showAlert("alert-detalle", `❌ ${err.message}`, "error");
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
 // ─── AVANZAR ESTADO ───────────────────────────────────────────
 async function avanzarEstado(trackingId) {
-  try {
-    const res = await fetchAuth(`/api/envios/${trackingId}/estado`, {
-      method: "PATCH",
-    });
-    const data = await res.json();
-
-    if (res.status === 401) {
-      window.location.href = "/login.html";
-      return;
-    }
-    if (!res.ok) throw new Error(data.error);
-
-    await verDetalle(trackingId);
-  } catch (err) {
-    showAlert("alert-detalle", `❌ ${err.message}`, "error");
+  if (!detalleEnvioDraft || detalleEnvioDraft.trackingId !== trackingId) {
+    showAlert("alert-detalle", "❌ No se pudo preparar el avance de estado.", "error");
+    return;
   }
+
+  sincronizarDetalleEnvioDraft();
+
+  const idxActual = ESTADOS_ENVIO.indexOf(detalleEnvioDraft.estadoActualDraft);
+  if (idxActual === ESTADOS_ENVIO.length - 1) {
+    showAlert("alert-detalle", "❌ El envío ya fue entregado, no puede avanzar más.", "error");
+    return;
+  }
+
+  detalleEnvioDraft.estadoActualDraft = ESTADOS_ENVIO[idxActual + 1];
+  detalleEnvioDraft.avancesPendientes += 1;
+
+  renderDetalleEnvio(detalleEnvioDraft);
+  showAlert(
+    "alert-detalle",
+    `ℹ️ Cambio de estado preparado. Guardalo con "Guardar cambios de estado".`,
+    "info",
+  );
 }
 
 // ─── SETUP DE CLIENTE ─────────────────────────────────────────
