@@ -508,4 +508,59 @@ describe("TEST8 Modificar datos del envío", () => {
       expect(res.body.error).toBeDefined();
     });
   });
+
+  // ─────────────────────────────────────────
+  // TEST12 Registrar fecha y hora del cambio
+  // ─────────────────────────────────────────
+
+  describe("TEST12 Registrar fecha y hora del cambio", () => {
+    test("ESCN1 Registro exitoso", async () => {
+      // 1. Crear envío
+      const crear = await request(app)
+        .post("/api/envios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          remitente: "Juan",
+          destinatario: "Pedro",
+          producto: "Celular",
+        });
+
+      expect(crear.statusCode).toBe(201);
+      const trackingId = crear.body.trackingId;
+
+      // 2. Cambiar estado
+      const cambio = await request(app)
+        .patch(`/api/envios/${trackingId}/estado`)
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(cambio.statusCode).toBe(200);
+
+      // 3. Obtener historial
+      const historial = await request(app)
+        .get(`/api/envios/${trackingId}/historial`)
+        .set("Authorization", `Bearer ${token}`);
+
+        console.log("HISTORIAL:", historial.body);
+
+      expect(historial.statusCode).toBe(200);
+      expect(historial.body.length).toBeGreaterThan(0);
+
+      // 👇 FIX
+      const registro = historial.body.find((h) => h.trackingId === trackingId);
+
+      expect(registro).toBeDefined();
+
+      // 4. Validar datos
+      expect(registro.trackingId).toBe(trackingId);
+      expect(registro.estado).toBeDefined();
+      expect(registro.fechaCambio).toBeDefined();
+
+      // 5. Validar formato de fecha (ISO válido)
+      const fecha = new Date(registro.fechaCambio);
+      expect(fecha.toString()).not.toBe("Invalid Date");
+
+
+      
+    });
+  });
 });
