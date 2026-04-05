@@ -44,33 +44,24 @@ function entrenarModeloJS(csvPath) {
   try {
     const lineas = fs.readFileSync(csvPath, "utf-8").trim().split("\n");
     if (lineas.length < 6) {
-      return {
-        ok: false,
-        error: `Datos insuficientes: ${lineas.length - 1} registros (mínimo 5)`,
-      };
+      return { ok: false, error: `Datos insuficientes: ${lineas.length - 1} registros (mínimo 5)` };
     }
 
     // Parsear CSV: dias_entrega, len_direccion, len_producto, hora_creacion, dia_semana
-    const datos = lineas
-      .slice(1)
-      .map((l) => {
-        const [dias, lenDir, lenProd, hora, dia] = l.split(",").map(Number);
-        return { dias, lenDir, lenProd, hora, dia };
-      })
-      .filter((d) => !isNaN(d.dias));
+    const datos = lineas.slice(1).map(l => {
+      const [dias, lenDir, lenProd, hora, dia] = l.split(",").map(Number);
+      return { dias, lenDir, lenProd, hora, dia };
+    }).filter(d => !isNaN(d.dias));
 
     if (datos.length < 5) {
-      return {
-        ok: false,
-        error: `Datos insuficientes: ${datos.length} registros válidos (mínimo 5)`,
-      };
+      return { ok: false, error: `Datos insuficientes: ${datos.length} registros válidos (mínimo 5)` };
     }
 
     // Regresión lineal múltiple por mínimos cuadrados
     // Features: [1, len_direccion, len_producto, hora_creacion, dia_semana]
     const n = datos.length;
-    const X = datos.map((d) => [1, d.lenDir, d.lenProd, d.hora, d.dia]);
-    const y = datos.map((d) => d.dias);
+    const X = datos.map(d => [1, d.lenDir, d.lenProd, d.hora, d.dia]);
+    const y = datos.map(d => d.dias);
 
     // Calcular X^T * X y X^T * y
     const k = 5;
@@ -89,22 +80,17 @@ function entrenarModeloJS(csvPath) {
     // Resolver sistema lineal con eliminación gaussiana
     const coef = resolverSistema(XtX, Xty);
     if (!coef) {
-      return {
-        ok: false,
-        error: "No se pudo resolver el sistema de ecuaciones.",
-      };
+      return { ok: false, error: "No se pudo resolver el sistema de ecuaciones." };
     }
 
     // Calcular métricas
-    const yPred = X.map((xi) => xi.reduce((s, v, j) => s + v * coef[j], 0));
+    const yPred = X.map(xi => xi.reduce((s, v, j) => s + v * coef[j], 0));
     const yMedia = y.reduce((a, b) => a + b, 0) / n;
     const ssTot = y.reduce((s, yi) => s + (yi - yMedia) ** 2, 0);
     const ssRes = y.reduce((s, yi, i) => s + (yi - yPred[i]) ** 2, 0);
-    const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 0;
-    const mae = yPred.reduce((s, yp, i) => s + Math.abs(y[i] - yp), 0) / n;
-    const rmse = Math.sqrt(
-      yPred.reduce((s, yp, i) => s + (y[i] - yp) ** 2, 0) / n,
-    );
+    const r2   = ssTot > 0 ? 1 - ssRes / ssTot : 0;
+    const mae  = yPred.reduce((s, yp, i) => s + Math.abs(y[i] - yp), 0) / n;
+    const rmse = Math.sqrt(yPred.reduce((s, yp, i) => s + (y[i] - yp) ** 2, 0) / n);
 
     // Guardar modelo como JSON
     const modelData = { coef, n, r2, mae, rmse };
@@ -119,7 +105,7 @@ function entrenarModeloJS(csvPath) {
       cvScore: "N/A (regresión lineal JS)",
       registrosUsados: n,
       modelo: "Regresión Lineal Múltiple",
-      mensaje: `Modelo entrenado con ${n} registros`,
+      mensaje: `Modelo entrenado con ${n} registros`
     };
   } catch (e) {
     return { ok: false, error: `Error al entrenar: ${e.message}` };
@@ -155,27 +141,17 @@ function resolverSistema(A, b) {
 function predecirJS(modelPath, features) {
   try {
     if (!fs.existsSync(modelPath)) {
-      return {
-        ok: false,
-        error:
-          "Modelo no entrenado. Primero entrenà el modelo desde el Panel IA.",
-      };
+      return { ok: false, error: "Modelo no entrenado. Primero entrenà el modelo desde el Panel IA." };
     }
     const { coef } = JSON.parse(fs.readFileSync(modelPath, "utf-8"));
-    const X = [
-      1,
-      features.len_direccion,
-      features.len_producto,
-      features.hora_creacion,
-      features.dia_semana,
-    ];
+    const X = [1, features.len_direccion, features.len_producto, features.hora_creacion, features.dia_semana];
     const dias = X.reduce((s, v, i) => s + v * coef[i], 0);
     const diasRedondeado = Math.max(1, Math.round(dias));
     return {
       ok: true,
       diasEstimados: diasRedondeado,
       diasExacto: parseFloat(dias.toFixed(2)),
-      mensaje: `Entrega estimada en ${diasRedondeado} día${diasRedondeado !== 1 ? "s" : ""}`,
+      mensaje: `Entrega estimada en ${diasRedondeado} día${diasRedondeado !== 1 ? "s" : ""}`
     };
   } catch (e) {
     return { ok: false, error: `Error al predecir: ${e.message}` };
@@ -202,9 +178,7 @@ async function requireAuth(req, res, next) {
 function requireRoles(...rolesPermitidos) {
   return (req, res, next) => {
     if (!rolesPermitidos.includes(req.usuario?.rol)) {
-      return res
-        .status(403)
-        .json({ error: "No tenés permisos para acceder a este recurso." });
+      return res.status(403).json({ error: 'No tenés permisos para acceder a este recurso.' });
     }
     next();
   };
@@ -259,23 +233,29 @@ app.post("/api/auth/register", async (req, res) => {
   }
 
   if (!REGEX_TELEFONO.test(telefono.trim())) {
-    return res.status(400).json({
-      error:
-        "El formato del número de teléfono no es válido. Debe tener al menos 6 dígitos.",
-    });
+    return res
+      .status(400)
+      .json({
+        error:
+          "El formato del número de teléfono no es válido. Debe tener al menos 6 dígitos.",
+      });
   }
 
   if (nombreUsuario.trim().length < 5) {
-    return res.status(400).json({
-      error: "El nombre de usuario debe tener al menos 5 caracteres.",
-    });
+    return res
+      .status(400)
+      .json({
+        error: "El nombre de usuario debe tener al menos 5 caracteres.",
+      });
   }
 
   if (!REGEX_PASSWORD.test(password)) {
-    return res.status(400).json({
-      error:
-        "La contraseña debe tener un mínimo de 8 caracteres, al menos una mayúscula y al menos un número.",
-    });
+    return res
+      .status(400)
+      .json({
+        error:
+          "La contraseña debe tener un mínimo de 8 caracteres, al menos una mayúscula y al menos un número.",
+      });
   }
 
   try {
@@ -290,9 +270,11 @@ app.post("/api/auth/register", async (req, res) => {
       return res.status(409).json({ error: resultado.error });
     }
 
-    res.status(201).json({
-      mensaje: "Cuenta creada correctamente. Ya podés iniciar sesión.",
-    });
+    res
+      .status(201)
+      .json({
+        mensaje: "Cuenta creada correctamente. Ya podés iniciar sesión.",
+      });
   } catch (err) {
     console.error("Error al registrar usuario:", err.message);
     res
@@ -426,22 +408,15 @@ app.get("/api/usuarios", requireAuth, async (req, res) => {
   }
 });
 
-app.get(
-  "/api/clientes/setup",
-  requireAuth,
-  requireRoles("Operador", "Supervisor"),
-  async (req, res) => {
-    try {
-      const clientes = await db.listarClientesParaSetup();
-      res.json({ clientes });
-    } catch (err) {
-      console.error("Error al listar clientes para setup:", err.message);
-      res
-        .status(500)
-        .json({ error: "No se pudieron obtener los clientes para setup." });
-    }
-  },
-);
+app.get('/api/clientes/setup', requireAuth, requireRoles('Operador', 'Supervisor'), async (req, res) => {
+  try {
+    const clientes = await db.listarClientesParaSetup();
+    res.json({ clientes });
+  } catch (err) {
+    console.error('Error al listar clientes para setup:', err.message);
+    res.status(500).json({ error: 'No se pudieron obtener los clientes para setup.' });
+  }
+});
 
 /**
  * @swagger
@@ -519,40 +494,39 @@ app.patch("/api/usuarios/:id/rol", requireAuth, async (req, res) => {
  *       500:
  *         description: Error al actualizar
  */
-app.patch(
-  "/api/usuarios/:id/perfil",
-  requireAuth,
-  requireRoles("Operador", "Supervisor"),
-  async (req, res) => {
-    const { nombre, direccion } = req.body;
+app.patch("/api/usuarios/:id/perfil", requireAuth, requireRoles("Operador", "Supervisor"), async (req, res) => {
+  const { nombre, direccion } = req.body;
 
-    if (!nombre?.trim() || !direccion?.trim()) {
-      return res.status(400).json({
+  if (!nombre?.trim() || !direccion?.trim()) {
+    return res
+      .status(400)
+      .json({
         error: "El nombre/negocio y la dirección no pueden estar vacíos.",
       });
-    }
+  }
 
-    if (nombre.trim().length > 50 || direccion.trim().length > 50) {
-      return res.status(400).json({
+  if (nombre.trim().length > 50 || direccion.trim().length > 50) {
+    return res
+      .status(400)
+      .json({
         error: "El nombre y dirección no pueden superar 50 caracteres.",
       });
-    }
+  }
 
-    try {
-      await db.actualizarDatosUsuario(
-        req.params.id,
-        nombre.trim(),
-        direccion.trim(),
-      );
-      res.json({ mensaje: "Datos del usuario actualizados correctamente." });
-    } catch (err) {
-      console.error("Error al actualizar datos de usuario:", err.message);
-      res
-        .status(500)
-        .json({ error: "No se pudo actualizar los datos del usuario." });
-    }
-  },
-);
+  try {
+    await db.actualizarDatosUsuario(
+      req.params.id,
+      nombre.trim(),
+      direccion.trim(),
+    );
+    res.json({ mensaje: "Datos del usuario actualizados correctamente." });
+  } catch (err) {
+    console.error("Error al actualizar datos de usuario:", err.message);
+    res
+      .status(500)
+      .json({ error: "No se pudo actualizar los datos del usuario." });
+  }
+});
 
 // ─────────────────────────────────────────
 //  RUTAS API (protegidas)
@@ -582,73 +556,74 @@ app.patch(
  *       400:
  *         description: Datos inválidos
  */
-app.post(
-  "/api/envios",
-  requireAuth,
-  requireRoles("Operador", "Supervisor"),
-  async (req, res) => {
-    const {
-      remitente,
-      destinatario,
-      producto,
-      direccionRemitente,
-      contactoRemitente,
-      contactoDestinatario,
-      direccionEntrega,
-    } = req.body;
+app.post("/api/envios", requireAuth, requireRoles("Operador", "Supervisor"), async (req, res) => {
+  const {
+    remitente,
+    destinatario,
+    producto,
+    direccionRemitente,
+    contactoRemitente,
+    contactoDestinatario,
+    direccionEntrega,
+  } = req.body;
 
-    if (!remitente || !destinatario || !producto) {
-      return res.status(400).json({
+  if (!remitente || !destinatario || !producto) {
+    return res
+      .status(400)
+      .json({
         error:
           "Todos los campos son obligatorios: remitente, destinatario y producto.",
       });
-    }
-    if (remitente.trim().length < 2 || destinatario.trim().length < 2) {
-      return res.status(400).json({
+  }
+  if (remitente.trim().length < 2 || destinatario.trim().length < 2) {
+    return res
+      .status(400)
+      .json({
         error: "El remitente y destinatario deben tener al menos 2 caracteres.",
       });
-    }
-    if (!REGEX_SOLO_LETRAS.test(remitente.trim())) {
-      return res
-        .status(400)
-        .json({ error: "El remitente solo puede contener letras y espacios." });
-    }
-    if (!REGEX_SOLO_LETRAS.test(destinatario.trim())) {
-      return res.status(400).json({
+  }
+  if (!REGEX_SOLO_LETRAS.test(remitente.trim())) {
+    return res
+      .status(400)
+      .json({ error: "El remitente solo puede contener letras y espacios." });
+  }
+  if (!REGEX_SOLO_LETRAS.test(destinatario.trim())) {
+    return res
+      .status(400)
+      .json({
         error: "El destinatario solo puede contener letras y espacios.",
       });
-    }
-    if (
-      remitente.length > 100 ||
-      destinatario.length > 100 ||
-      producto.length > 200
-    ) {
-      return res.status(400).json({
+  }
+  if (
+    remitente.length > 100 ||
+    destinatario.length > 100 ||
+    producto.length > 200
+  ) {
+    return res
+      .status(400)
+      .json({
         error: "Uno o más campos superan la longitud máxima permitida.",
       });
-    }
+  }
 
-    try {
-      const trackingId = await db.crearEnvio(
-        remitente.trim(),
-        destinatario.trim(),
-        producto.trim(),
-        (direccionRemitente || "").trim(),
-        (contactoRemitente || "").trim(),
-        (contactoDestinatario || "").trim(),
-        (direccionEntrega || "").trim(),
-      );
-      res
-        .status(201)
-        .json({ mensaje: "Envío creado exitosamente.", trackingId });
-    } catch (err) {
-      console.error("Error al crear envío:", err.message);
-      res
-        .status(500)
-        .json({ error: "No se pudo crear el envío. Intente nuevamente." });
-    }
-  },
-);
+  try {
+    const trackingId = await db.crearEnvio(
+      remitente.trim(),
+      destinatario.trim(),
+      producto.trim(),
+      (direccionRemitente || "").trim(),
+      (contactoRemitente || "").trim(),
+      (contactoDestinatario || "").trim(),
+      (direccionEntrega || "").trim(),
+    );
+    res.status(201).json({ mensaje: "Envío creado exitosamente.", trackingId });
+  } catch (err) {
+    console.error("Error al crear envío:", err.message);
+    res
+      .status(500)
+      .json({ error: "No se pudo crear el envío. Intente nuevamente." });
+  }
+});
 
 // GET /api/envios
 /**
@@ -689,7 +664,7 @@ app.get("/api/envios", requireAuth, async (req, res) => {
       estado,
       req.usuario.rol,
       req.usuario.nombre,
-      req.usuario.direccion,
+      req.usuario.direccion
     );
     res.json(resultado);
   } catch (err) {
@@ -729,9 +704,11 @@ app.get("/api/envios/buscar/destinatario", requireAuth, async (req, res) => {
   }
 
   if (!REGEX_SOLO_LETRAS.test(nombre.trim())) {
-    return res.status(400).json({
-      error: "El nombre no es válido. Solo puede contener letras y espacios.",
-    });
+    return res
+      .status(400)
+      .json({
+        error: "El nombre no es válido. Solo puede contener letras y espacios.",
+      });
   }
 
   try {
@@ -739,13 +716,15 @@ app.get("/api/envios/buscar/destinatario", requireAuth, async (req, res) => {
       nombre.trim(),
       req.usuario.rol,
       req.usuario.nombre,
-      req.usuario.direccion,
+      req.usuario.direccion
     );
 
     if (!envios.length) {
-      return res.status(404).json({
-        error: `No se encontraron envíos para el destinatario "${nombre}".`,
-      });
+      return res
+        .status(404)
+        .json({
+          error: `No se encontraron envíos para el destinatario "${nombre}".`,
+        });
     }
 
     res.json({ envios });
@@ -777,9 +756,11 @@ app.get("/api/envios/:trackingId", requireAuth, async (req, res) => {
   const trackingId = req.params.trackingId.toUpperCase();
 
   if (!/^[A-Z]{2}-\d{6}$/.test(trackingId)) {
-    return res.status(400).json({
-      error: "El Tracking ID no es válido. Debe tener el formato: XX-XXXXXX.",
-    });
+    return res
+      .status(400)
+      .json({
+        error: "El Tracking ID no es válido. Debe tener el formato: XX-XXXXXX.",
+      });
   }
 
   try {
@@ -787,7 +768,7 @@ app.get("/api/envios/:trackingId", requireAuth, async (req, res) => {
       trackingId,
       req.usuario.rol,
       req.usuario.nombre,
-      req.usuario.direccion,
+      req.usuario.direccion
     );
     if (!envio) {
       return res.status(404).json({ error: "Envío no encontrado." });
@@ -810,10 +791,12 @@ app.patch("/api/envios/:trackingId", requireAuth, async (req, res) => {
   const { destinatario, direccionEntrega } = req.body;
 
   if (!destinatario?.trim() || !direccionEntrega?.trim()) {
-    return res.status(400).json({
-      error:
-        "El destinatario y la dirección de entrega no pueden estar vacíos.",
-    });
+    return res
+      .status(400)
+      .json({
+        error:
+          "El destinatario y la dirección de entrega no pueden estar vacíos.",
+      });
   }
 
   try {
@@ -866,9 +849,7 @@ app.patch("/api/envios/:trackingId", requireAuth, async (req, res) => {
  */
 app.patch("/api/envios/:trackingId/estado", requireAuth, async (req, res) => {
   if (!["Operador", "Supervisor"].includes(req.usuario.rol)) {
-    return res
-      .status(403)
-      .json({ error: "No tenés permisos para cambiar el estado del envío." });
+    return res.status(403).json({ error: "No tenés permisos para cambiar el estado del envío." });
   }
 
   try {
@@ -913,10 +894,7 @@ app.get(
     if (!/^[A-Z]{2}-\d{6}$/.test(trackingId)) {
       return res
         .status(400)
-        .json({
-          error:
-            "El Tracking ID no es válido. Debe tener el formato: XX-XXXXXX.",
-        });
+        .json({ error: "El Tracking ID no es válido. Debe tener el formato: XX-XXXXXX." });
     }
 
     try {
@@ -1019,37 +997,26 @@ app.post("/api/dataset/estructurar", requireAuth, async (req, res) => {
  *       500:
  *         description: Error al ejecutar el script
  */
-app.post(
-  "/api/modelo/entrenar",
-  requireAuth,
-  requireRoles("Supervisor"),
-  async (req, res) => {
-    const csvPath = path.join(__dirname, "datasets", "training_data.csv");
+app.post("/api/modelo/entrenar", requireAuth, requireRoles("Supervisor"), async (req, res) => {
+  const csvPath = path.join(__dirname, "datasets", "training_data.csv");
 
-    if (!fs.existsSync(csvPath)) {
-      return res
-        .status(400)
-        .json({
-          error: "No se encontró el dataset. Primero estructurá el dataset.",
-        });
+  if (!fs.existsSync(csvPath)) {
+    return res.status(400).json({ error: "No se encontró el dataset. Primero estructurá el dataset." });
+  }
+
+  try {
+    const resultado = entrenarModeloJS(csvPath);
+
+    if (!resultado.ok) {
+      return res.status(400).json({ error: resultado.error });
     }
 
-    try {
-      const resultado = entrenarModeloJS(csvPath);
-
-      if (!resultado.ok) {
-        return res.status(400).json({ error: resultado.error });
-      }
-
-      res.json(resultado);
-    } catch (err) {
-      console.error("Error al entrenar modelo:", err.message);
-      res
-        .status(500)
-        .json({ error: `No se pudo entrenar el modelo: ${err.message}` });
-    }
-  },
-);
+    res.json(resultado);
+  } catch (err) {
+    console.error("Error al entrenar modelo:", err.message);
+    res.status(500).json({ error: `No se pudo entrenar el modelo: ${err.message}` });
+  }
+});
 
 // POST /api/modelo/predecir
 /**
@@ -1072,64 +1039,55 @@ app.post(
  *       403:
  *         description: Sin permisos
  */
-app.post(
-  "/api/modelo/predecir",
-  requireAuth,
-  requireRoles("Supervisor"),
-  async (req, res) => {
-    const { trackingId } = req.body;
+app.post("/api/modelo/predecir", requireAuth, requireRoles("Supervisor"), async (req, res) => {
+  const { trackingId } = req.body;
 
-    if (!trackingId) {
-      return res
-        .status(400)
-        .json({ error: "Ingresá un Tracking ID para predecir." });
+  if (!trackingId) {
+    return res.status(400).json({ error: "Ingresá un Tracking ID para predecir." });
+  }
+
+  const modelPath = path.join(__dirname, "datasets", "model.json");
+  if (!fs.existsSync(modelPath)) {
+    return res.status(400).json({ error: "El modelo no está entrenado. Completá los pasos 1 y 2 primero." });
+  }
+
+  try {
+    const envio = await db.buscarPorTracking(trackingId.toUpperCase());
+    if (!envio) {
+      return res.status(404).json({ error: "Envío no encontrado." });
     }
 
-    const modelPath = path.join(__dirname, "datasets", "model.json");
-    if (!fs.existsSync(modelPath)) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "El modelo no está entrenado. Completá los pasos 1 y 2 primero.",
-        });
+    if (envio.estado !== "creado") {
+      return res.status(400).json({ error: `Solo se pueden predecir envíos en estado "creado". Este envío está en estado "${envio.estado}".` });
     }
 
-    try {
-      const envio = await db.buscarPorTracking(trackingId.toUpperCase());
-      if (!envio) {
-        return res.status(404).json({ error: "Envío no encontrado." });
-      }
+    const fechaCreacion = new Date(envio.fechaCreacion);
+    const features = {
+      len_direccion: (envio.direccionEntrega || "").length,
+      len_producto:  (envio.producto || "").length,
+      hora_creacion: fechaCreacion.getHours(),
+      dia_semana:    fechaCreacion.getDay()
+    };
 
-      const fechaCreacion = new Date(envio.fechaCreacion);
-      const features = {
-        len_direccion: (envio.direccionEntrega || "").length,
-        len_producto: (envio.producto || "").length,
-        hora_creacion: fechaCreacion.getHours(),
-        dia_semana: fechaCreacion.getDay(),
-      };
+    const resultado = predecirJS(modelPath, features);
 
-      const resultado = predecirJS(modelPath, features);
-
-      if (!resultado.ok) {
-        return res.status(400).json({ error: resultado.error });
-      }
-
-      res.json({
-        ...resultado,
-        trackingId: envio.trackingId,
-        producto: envio.producto,
-        destinatario: envio.destinatario,
-        estado: envio.estado,
-      });
-    } catch (err) {
-      console.error("Error al predecir:", err.message);
-      res
-        .status(500)
-        .json({ error: `No se pudo realizar la predicción: ${err.message}` });
+    if (!resultado.ok) {
+      return res.status(400).json({ error: resultado.error });
     }
-  },
-);
+
+    res.json({
+      ...resultado,
+      trackingId: envio.trackingId,
+      producto:   envio.producto,
+      destinatario: envio.destinatario,
+      estado:     envio.estado
+    });
+
+  } catch (err) {
+    console.error("Error al predecir:", err.message);
+    res.status(500).json({ error: `No se pudo realizar la predicción: ${err.message}` });
+  }
+});
 
 // ─────────────────────────────────────────
 //  MANEJO DE ERRORES GLOBAL
