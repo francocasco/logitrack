@@ -468,32 +468,16 @@ async function cambiarEstado(trackingId) {
 
 // ─── GESTIÓN USUARIOS ─────────────────────────────────────────
 async function listarUsuarios() {
-  try {
-    const res = await db.execute({
-      sql: `SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion, nombre, direccion
-            FROM usuarios ORDER BY id DESC`,
+  const res = await db.execute(
+    'SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion, nombre, direccion FROM usuarios ORDER BY id DESC'
+  );
+  return res.rows.map((row) => {
+    const obj = {};
+    res.columns.forEach((col, i) => {
+      obj[col] = row[i] ?? '';
     });
-
-    return res.rows.map((row) => {
-      const obj = {};
-      res.columns.forEach((col, i) => {
-        obj[col] = row[i] ?? "";
-      });
-      return obj;
-    });
-  } catch (err) {
-    const resFallback = await db.execute("SELECT id, email, rol FROM usuarios");
-    return resFallback.rows.map((row) => ({
-      id: row.id || 0,
-      email: row.email || "",
-      telefono: "",
-      nombreUsuario: "",
-      rol: row.rol || "Cliente",
-      fechaCreacion: "",
-      nombre: "",
-      direccion: "",
-    }));
-  }
+    return obj;
+  });
 }
 
 async function actualizarRolUsuario(id, rol) {
@@ -511,20 +495,16 @@ async function actualizarDatosUsuario(id, nombre, direccion) {
 }
 
 async function listarClientesParaSetup() {
-  try {
-    const res = await db.execute("SELECT id, email, nombreUsuario FROM usuarios WHERE rol = 'Cliente'");
-    console.log('RAW CLIENTES:', JSON.stringify(res));
-    return res.rows.map(row => ({
-      id: row.id || 0,
-      email: row.email || '',
-      nombreUsuario: row.nombreUsuario || '',
-      nombre: '',
-      direccion: ''
-    }));
-  } catch (err) {
-    console.error('ERROR EN listarClientesParaSetup:', err.message, err.stack);
-    throw err;
-  }
+  const res = await db.execute(
+    "SELECT id, email, nombreUsuario, nombre, direccion FROM usuarios WHERE rol = 'Cliente' ORDER BY id DESC"
+  );
+  return res.rows.map((row) => {
+    const obj = {};
+    res.columns.forEach((col, i) => {
+      obj[col] = row[i] ?? '';
+    });
+    return obj;
+  });
 }
 
 // ─── HISTORIAL ────────────────────────────────────────────────
