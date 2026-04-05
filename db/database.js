@@ -404,6 +404,9 @@ async function listarUsuarios() {
     sql: `SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion, nombre, direccion
           FROM usuarios ORDER BY id DESC`,
   });
+
+  console.log('Filas raw:', JSON.stringify(res.rows));
+  console.log('Columns:', JSON.stringify(res.columns));
   return res.rows.map((row) => ({
     id: row.id,
     email: row.email,
