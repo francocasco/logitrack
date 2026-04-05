@@ -1273,11 +1273,17 @@ async function entrenarModelo() {
 
 async function predecirEnvio() {
   const input = document.getElementById("input-predecir");
+  const btn = document.querySelector("#page-ia .ia-card:nth-child(3) .btn-primary");
   const btnText = document.getElementById("btn-predecir-text");
   const statusBox = document.getElementById("predecir-status");
   const resultado = document.getElementById("prediccion-resultado");
 
   const trackingId = input.value.trim().toUpperCase();
+
+  // Limpiar estado anterior antes de cada predicción
+  resultado.style.display = "none";
+  statusBox.style.display = "none";
+  statusBox.className = "ia-status-box";
 
   if (!trackingId) {
     statusBox.style.display = "block";
@@ -1286,11 +1292,11 @@ async function predecirEnvio() {
     return;
   }
 
+  if (btn) btn.disabled = true;
   btnText.textContent = "⏳ Calculando...";
   statusBox.style.display = "block";
   statusBox.className = "ia-status-box loading";
   statusBox.textContent = "Consultando modelo...";
-  resultado.style.display = "none";
 
   try {
     const res = await fetchAuth("/api/modelo/predecir", {
@@ -1319,6 +1325,7 @@ async function predecirEnvio() {
     statusBox.className = "ia-status-box error";
     statusBox.textContent = `✗ Error de conexión: ${err.message}`;
   } finally {
+    if (btn) btn.disabled = false;
     btnText.textContent = "🔮 Predecir";
   }
 }
