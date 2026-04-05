@@ -1,3 +1,5 @@
+console.log('DB URL:', process.env.TURSO_URL ? 'Turso conectado' : 'Usando archivo local');
+
 require("dotenv").config();
 const { createClient } = require("@libsql/client");
 const bcrypt = require("bcryptjs");
