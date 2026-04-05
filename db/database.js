@@ -356,6 +356,20 @@ async function actualizarRolUsuario(id, rol) {
   });
 }
 
+async function listarClientesParaSetup() {
+  const res = await db.execute({
+    sql: `SELECT id, email, nombreUsuario
+          FROM usuarios
+          WHERE rol = 'Cliente'
+          ORDER BY id DESC`
+  });
+  return res.rows.map(row => ({
+    id: row.id,
+    email: row.email,
+    nombreUsuario: row.nombreUsuario || ''
+  }));
+}
+
 module.exports = {
   inicializar,
   login,
@@ -369,5 +383,6 @@ module.exports = {
   ESTADOS,
   crearUsuario,
   listarUsuarios,
-  actualizarRolUsuario
+  actualizarRolUsuario,
+  listarClientesParaSetup
 };
