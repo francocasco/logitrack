@@ -80,10 +80,7 @@ async function inicializar() {
     )
   `);
 
-  const columnasUsuarios = [
-    "nombre VARCHAR(50) NULL",
-    "direccion VARCHAR(50) NULL",
-  ];
+  const columnasUsuarios = ["nombre VARCHAR(50) NULL", "direccion VARCHAR(50) NULL"];
   for (const col of columnasUsuarios) {
     try {
       await db.execute(`ALTER TABLE usuarios ADD COLUMN ${col}`);
@@ -191,9 +188,7 @@ async function login(email, password) {
     const nuevosIntentos = Number(usuario.intentosFallidos) + 1;
 
     if (nuevosIntentos >= MAX_INTENTOS) {
-      const bloqueadoHasta = new Date(
-        Date.now() + BLOQUEO_MIN * 60 * 1000,
-      ).toISOString();
+      const bloqueadoHasta = new Date(Date.now() + BLOQUEO_MIN * 60 * 1000).toISOString();
       await db.execute({
         sql: "UPDATE usuarios SET intentosFallidos = ?, bloqueadoHasta = ? WHERE id = ?",
         args: [nuevosIntentos, bloqueadoHasta, usuario.id],
@@ -262,7 +257,7 @@ async function crearEnvio(
   direccionRemitente = "",
   contactoRemitente = "",
   contactoDestinatario = "",
-  direccionEntrega = "",
+  direccionEntrega = ""
 ) {
   const letras = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const prefijo =
@@ -278,27 +273,38 @@ async function crearEnvio(
           contactoDestinatario, direccionEntrega)
           VALUES (?, ?, ?, ?, 'creado', ?, ?, ?, ?, ?, ?)`,
     args: [
-      trackingId,
-      remitente,
-      destinatario,
-      producto,
-      ahora,
-      ahora,
-      direccionRemitente,
-      contactoRemitente,
-      contactoDestinatario,
-      direccionEntrega,
+      trackingId, remitente, destinatario, producto,
+      ahora, ahora, direccionRemitente, contactoRemitente,
+      contactoDestinatario, direccionEntrega,
     ],
   });
 
   return trackingId;
 }
 
-async function listarEnvios(pagina = 1, porPagina = 10, estado = null) {
+async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = null, nombre = null, direccion = null) {
   const offset = (pagina - 1) * porPagina;
-  const whereClause = estado ? "WHERE estado = ?" : "";
-  const args = estado ? [estado, porPagina, offset] : [porPagina, offset];
-  const argsCount = estado ? [estado] : [];
+
+  // Si es Cliente, filtrar solo sus envíos (remitente o destinatario)
+  let whereClause = "";
+  let args = [];
+  let argsCount = [];
+
+  if (rol === "Cliente" && nombre) {
+    if (estado) {
+      whereClause = "WHERE estado = ? AND (remitente LIKE ? OR destinatario LIKE ?)";
+      args = [estado, `%${nombre}%`, `%${nombre}%`, porPagina, offset];
+      argsCount = [estado, `%${nombre}%`, `%${nombre}%`];
+    } else {
+      whereClause = "WHERE (remitente LIKE ? OR destinatario LIKE ?)";
+      args = [`%${nombre}%`, `%${nombre}%`, porPagina, offset];
+      argsCount = [`%${nombre}%`, `%${nombre}%`];
+    }
+  } else {
+    whereClause = estado ? "WHERE estado = ?" : "";
+    args = estado ? [estado, porPagina, offset] : [porPagina, offset];
+    argsCount = estado ? [estado] : [];
+  }
 
   const resEnvios = await db.execute({
     sql: `SELECT * FROM envios ${whereClause} ORDER BY fechaCreacion DESC LIMIT ? OFFSET ?`,
@@ -323,7 +329,7 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null) {
   };
 }
 
-async function buscarPorTracking(trackingId) {
+async function buscarPorTracking(trackingId, rol = null, nombre = null, direccion = null) {
   const res = await db.execute({
     sql: "SELECT * FROM envios WHERE trackingId = ?",
     args: [trackingId],
@@ -331,7 +337,7 @@ async function buscarPorTracking(trackingId) {
   return res.rows[0] || null;
 }
 
-async function buscarPorDestinatario(nombre) {
+async function buscarPorDestinatario(nombre, rol = null, nombreUsuario = null, direccion = null) {
   const res = await db.execute({
     sql: "SELECT * FROM envios WHERE destinatario LIKE ? ORDER BY fechaCreacion DESC",
     args: [`%${nombre}%`],
@@ -351,10 +357,7 @@ async function actualizarEnvio(trackingId, destinatario, direccionEntrega) {
   const direccionNormalizada = direccionEntrega?.trim();
 
   if (!destinatarioNormalizado || !direccionNormalizada) {
-    return {
-      error:
-        "El destinatario y la dirección de entrega no pueden estar vacíos.",
-    };
+    return { error: "El destinatario y la dirección de entrega no pueden estar vacíos." };
   }
 
   const ahora = new Date().toISOString();
@@ -464,9 +467,16 @@ async function registrarHistorial(envio) {
   });
 }
 
-async function obtenerHistorial() {
+async function obtenerHistorial(trackingId = null) {
+  if (trackingId) {
+    const res = await db.execute({
+      sql: "SELECT * FROM historial_envios WHERE trackingId = ? ORDER BY fechaEntrega DESC",
+      args: [trackingId],
+    });
+    return res.rows;
+  }
   const res = await db.execute(
-    "SELECT * FROM historial_envios ORDER BY fechaEntrega DESC",
+    "SELECT * FROM historial_envios ORDER BY fechaEntrega DESC"
   );
   return res.rows;
 }
@@ -475,12 +485,11 @@ async function obtenerHistorial() {
 async function estructurarDataset() {
   try {
     const resLog = await db.execute(
-      "SELECT * FROM log_estructuracion ORDER BY fechaUltima DESC LIMIT 1",
+      "SELECT * FROM log_estructuracion ORDER BY fechaUltima DESC LIMIT 1"
     );
     if (resLog.rows.length > 0) {
       const ultimaEstructuracion = new Date(resLog.rows[0].fechaUltima);
-      const diasTranscurridos =
-        (new Date() - ultimaEstructuracion) / (1000 * 60 * 60 * 24);
+      const diasTranscurridos = (new Date() - ultimaEstructuracion) / (1000 * 60 * 60 * 24);
       if (diasTranscurridos < 10) {
         return {
           ok: false,
@@ -490,47 +499,26 @@ async function estructurarDataset() {
     }
 
     const resHistorial = await db.execute(
-      "SELECT * FROM historial_envios ORDER BY fechaCreacion ASC",
+      "SELECT * FROM historial_envios ORDER BY fechaCreacion ASC"
     );
     const envios = resHistorial.rows;
 
     if (envios.length === 0) {
-      return {
-        ok: false,
-        mensaje: "No hay datos disponibles para estructurar.",
-      };
+      return { ok: false, mensaje: "No hay datos disponibles para estructurar." };
     }
 
-    const csvHeaders = [
-      "dias_entrega",
-      "len_direccion",
-      "len_producto",
-      "hora_creacion",
-      "dia_semana",
-    ];
+    const csvHeaders = ["dias_entrega", "len_direccion", "len_producto", "hora_creacion", "dia_semana"];
     const csvRows = [];
 
     envios.forEach((envio) => {
       const fechaCreacion = new Date(envio.fechaCreacion);
       const fechaEntrega = new Date(envio.fechaEntrega);
-      const diasEntrega = Math.ceil(
-        (fechaEntrega - fechaCreacion) / (1000 * 60 * 60 * 24),
-      );
-      const lenDireccion = envio.direccionEntrega
-        ? envio.direccionEntrega.length
-        : 0;
+      const diasEntrega = Math.ceil((fechaEntrega - fechaCreacion) / (1000 * 60 * 60 * 24));
+      const lenDireccion = envio.direccionEntrega ? envio.direccionEntrega.length : 0;
       const lenProducto = envio.producto ? envio.producto.length : 0;
       const horaCreacion = fechaCreacion.getHours();
       const diaSemanacreacion = fechaCreacion.getDay();
-      csvRows.push(
-        [
-          diasEntrega,
-          lenDireccion,
-          lenProducto,
-          horaCreacion,
-          diaSemanacreacion,
-        ].join(","),
-      );
+      csvRows.push([diasEntrega, lenDireccion, lenProducto, horaCreacion, diaSemanacreacion].join(","));
     });
 
     const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
