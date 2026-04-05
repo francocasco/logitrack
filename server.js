@@ -944,6 +944,36 @@ app.patch("/api/envios/:trackingId/estado", requireAuth, async (req, res) => {
   }
 });
 
+app.patch("/api/envios/:trackingId/cancelar", requireAuth, async (req, res) => {
+  if (!["Operador", "Supervisor"].includes(req.usuario.rol)) {
+    return res
+      .status(403)
+      .json({ error: "No tenés permisos para cancelar el envío." });
+  }
+
+  try {
+    const resultado = await db.cancelarEnvio(
+      req.params.trackingId.toUpperCase(),
+    );
+
+    if (!resultado) {
+      return res.status(404).json({ error: "Envío no encontrado." });
+    }
+
+    if (resultado.error) {
+      return res.status(400).json({ error: resultado.error });
+    }
+
+    res.json({
+      mensaje: 'Envío cancelado correctamente.',
+      ...resultado,
+    });
+  } catch (err) {
+    console.error("Error al cancelar envío:", err.message);
+    res.status(500).json({ error: "No se pudo cancelar el envío." });
+  }
+});
+
 // GET /api/envios/:trackingId/historial
 app.get(
   "/api/envios/:trackingId/historial",

@@ -635,6 +635,67 @@ describe("TEST8 Modificar datos del envío", () => {
     expect(editar.body.error).toContain("entregado");
   });
 
+  test("ESCN3 Modificación fallida - envío cancelado", async () => {
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({
+        remitente: "Centro Logístico",
+        destinatario: "Andrea",
+        producto: "Tablet",
+      });
+
+    expect(crear.statusCode).toBe(201);
+
+    const trackingId = crear.body.trackingId;
+
+    const cancelar = await request(app)
+      .patch(`/api/envios/${trackingId}/cancelar`)
+      .set("Authorization", `Bearer ${operadorToken}`);
+
+    expect(cancelar.statusCode).toBe(200);
+    expect(cancelar.body.nuevoEstado).toBe("cancelado");
+
+    const editar = await request(app)
+      .patch(`/api/envios/${trackingId}`)
+      .set("Authorization", `Bearer ${operadorToken}`)
+      .send({
+        destinatario: "Andrea Gómez",
+        direccionEntrega: "Calle Falsa 123",
+      });
+
+    expect(editar.statusCode).toBe(400);
+    expect(editar.body.error).toContain("cancelado");
+  });
+
+  test("ESCN4 Cancelación fallida si el envío no está en estado creado", async () => {
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${supervisorToken}`)
+      .send({
+        remitente: "Sucursal Centro",
+        destinatario: "Martín",
+        producto: "Teclado",
+      });
+
+    expect(crear.statusCode).toBe(201);
+
+    const trackingId = crear.body.trackingId;
+
+    const avanzar = await request(app)
+      .patch(`/api/envios/${trackingId}/estado`)
+      .set("Authorization", `Bearer ${supervisorToken}`);
+
+    expect(avanzar.statusCode).toBe(200);
+
+    const cancelar = await request(app)
+      .patch(`/api/envios/${trackingId}/cancelar`)
+      .set("Authorization", `Bearer ${operadorToken}`);
+
+    expect(cancelar.statusCode).toBe(400);
+    expect(cancelar.body.error).toContain('estado "creado"');
+  });
+
   // ─────────────────────────────────────────
   // BUSCAR ENVÍO POR NOMBRE DE DESTINATARIO
   // ─────────────────────────────────────────

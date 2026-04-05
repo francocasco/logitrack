@@ -417,6 +417,10 @@ async function actualizarEnvio(trackingId, destinatario, direccionEntrega) {
     return { error: "No se puede modificar un envío que ya fue entregado." };
   }
 
+  if (envio.estado === "cancelado") {
+    return { error: "No se puede modificar un envío cancelado." };
+  }
+
   const destinatarioNormalizado = destinatario?.trim();
   const direccionNormalizada = direccionEntrega?.trim();
 
@@ -444,7 +448,15 @@ async function cambiarEstado(trackingId) {
   const envio = res.rows[0];
   if (!envio) return null;
 
+  if (envio.estado === "cancelado") {
+    return { error: "El envío está cancelado y no puede avanzar de estado." };
+  }
+
   const indexActual = ESTADOS.indexOf(envio.estado);
+  if (indexActual === -1) {
+    return { error: `Estado actual inválido: ${envio.estado}.` };
+  }
+
   if (indexActual === ESTADOS.length - 1) {
     return { error: "El envío ya fue entregado, no puede avanzar más." };
   }
@@ -465,6 +477,39 @@ async function cambiarEstado(trackingId) {
 
   return { trackingId, nuevoEstado };
 }
+async function cancelarEnvio(trackingId) {
+  const res = await db.execute({
+    sql: "SELECT * FROM envios WHERE trackingId = ?",
+    args: [trackingId],
+  });
+
+  const envio = res.rows[0];
+  if (!envio) return null;
+
+  if (envio.estado !== "creado") {
+    return {
+      error:
+        "Solo se pueden cancelar envíos en estado \"creado\".",
+    };
+  }
+
+  const ahora = new Date().toISOString();
+
+  await db.execute({
+    sql: "UPDATE envios SET estado = ?, fechaActualizacion = ? WHERE trackingId = ?",
+    args: ["cancelado", ahora, trackingId],
+  });
+
+  await db.execute({
+    sql: `INSERT INTO historial_estados (trackingId, estado, fechaCambio)
+          VALUES (?, ?, ?)`,
+    args: [trackingId, "cancelado", ahora],
+  });
+
+  return { trackingId, nuevoEstado: "cancelado" };
+}
+
+
 
 // ─── GESTIÓN USUARIOS ─────────────────────────────────────────
 async function listarUsuarios() {
@@ -629,6 +674,7 @@ module.exports = {
   buscarPorDestinatario,
   actualizarEnvio,
   cambiarEstado,
+  cancelarEnvio,
   ESTADOS,
   crearUsuario,
   listarUsuarios,

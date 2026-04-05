@@ -196,6 +196,8 @@ td select {
 .btn-primary:hover { background: #f5d060; }
 .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: rgba(248,113,113,0.15); color: #fca5a5; border: 1px solid rgba(248,113,113,0.25); }
+.btn-danger:hover { background: rgba(248,113,113,0.22); color: #fecaca; }
 .btn-sm { padding: 5px 12px; font-size: 12px; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
@@ -251,6 +253,7 @@ tr:hover td { background: var(--surface2); }
 .badge-transito { background: rgba(251,191,36,0.12); color: #fbbf24; }
 .badge-sucursal { background: rgba(96,165,250,0.12); color: #60a5fa; }
 .badge-entregado { background: var(--green-dim); color: var(--green); }
+.badge-cancelado { background: rgba(248,113,113,0.12); color: #f87171; }
 
 /* ── SEARCH BAR ── */
 .search-bar { display: flex; gap: 10px; margin-bottom: 20px; }

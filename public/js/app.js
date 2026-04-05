@@ -121,6 +121,7 @@ function badgeEstado(estado) {
     "en tránsito": "badge-transito",
     "en sucursal": "badge-sucursal",
     entregado: "badge-entregado",
+    cancelado: "badge-cancelado",
   };
   return `<span class="badge ${clases[estado] || ""}">${estado}</span>`;
 }
@@ -703,14 +704,16 @@ function renderDetalleEnvio(draft) {
 
   const { envioBase: e, usuarioActual } = draft;
   const idx = ESTADOS_ENVIO.indexOf(draft.estadoActualDraft);
+  const envioCancelado = draft.estadoActualDraft === "cancelado";
   const puedeGestionarEnvio = ["Operador", "Supervisor"].includes(
     usuarioActual.rol,
   );
   const puedeConsultarHistorial = ["Operador", "Supervisor"].includes(
     usuarioActual.rol,
   );
-  const puedeAvanzar = puedeGestionarEnvio && idx < ESTADOS_ENVIO.length - 1;
-  const puedeEditar = puedeGestionarEnvio;
+  const puedeAvanzar =
+    puedeGestionarEnvio && !envioCancelado && idx < ESTADOS_ENVIO.length - 1;
+  const puedeEditar = puedeGestionarEnvio && !envioCancelado;
   const direccionEntrega = draft.direccionEntregaDraft?.trim()
     ? draft.direccionEntregaDraft
     : "Sin especificar";
@@ -853,11 +856,24 @@ function renderDetalleEnvio(draft) {
               ⚡ Avanzar estado
             </button>
           `
-              : idx === ESTADOS_ENVIO.length - 1
+              : envioCancelado
+                ? `
+            <span style="color:var(--red);font-size:13px">⛔ Envío cancelado</span>
+          `
+                : idx === ESTADOS_ENVIO.length - 1
                 ? `
             <span style="color:var(--green);font-size:13px">✅ Entrega completada</span>
           `
                 : ""
+          }
+          ${
+            puedeGestionarEnvio
+              ? `
+            <button class="btn btn-danger" onclick="cancelarEnvio('${e.trackingId}')">
+              🛑 Cancelar envío
+            </button>
+          `
+              : ""
           }
           <button class="btn btn-secondary" onclick="navigate('page-lista')">← Volver a lista</button>
         </div>
@@ -1001,6 +1017,11 @@ async function guardarCambiosEstado(trackingId) {
     return;
   }
 
+  if (detalleEnvioDraft.estadoActualDraft === "cancelado") {
+    showAlert("alert-detalle", "❌ Un envío cancelado no puede cambiar de estado.", "error");
+    return;
+  }
+
   const avancesPendientes = detalleEnvioDraft.avancesPendientes;
   const btn = document.getElementById("btn-guardar-estado");
 
@@ -1048,6 +1069,11 @@ async function avanzarEstado(trackingId) {
   sincronizarDetalleEnvioDraft();
 
   const idxActual = ESTADOS_ENVIO.indexOf(detalleEnvioDraft.estadoActualDraft);
+  if (detalleEnvioDraft.estadoActualDraft === "cancelado") {
+    showAlert("alert-detalle", "❌ Un envío cancelado no puede avanzar de estado.", "error");
+    return;
+  }
+
   if (idxActual === ESTADOS_ENVIO.length - 1) {
     showAlert("alert-detalle", "❌ El envío ya fue entregado, no puede avanzar más.", "error");
     return;
@@ -1062,6 +1088,31 @@ async function avanzarEstado(trackingId) {
     `ℹ️ Cambio de estado preparado. Guardalo con "Guardar cambios de estado".`,
     "info",
   );
+}
+
+async function cancelarEnvio(trackingId) {
+  if (!detalleEnvioDraft || detalleEnvioDraft.trackingId !== trackingId) {
+    showAlert("alert-detalle", "❌ No se pudo cancelar el envío.", "error");
+    return;
+  }
+
+  try {
+    const res = await fetchAuth(`/api/envios/${trackingId}/cancelar`, {
+      method: "PATCH",
+    });
+    const data = await res.json();
+
+    if (res.status === 401) {
+      window.location.href = "/login.html";
+      return;
+    }
+    if (!res.ok) throw new Error(data.error);
+
+    await verDetalle(trackingId);
+    showAlert("alert-detalle", "✅ Envío cancelado correctamente.", "success");
+  } catch (err) {
+    showAlert("alert-detalle", `❌ ${err.message}`, "error");
+  }
 }
 
 // ─── SETUP DE CLIENTE ─────────────────────────────────────────
