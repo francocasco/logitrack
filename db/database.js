@@ -404,19 +404,17 @@ async function listarUsuarios() {
     sql: `SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion, nombre, direccion
           FROM usuarios ORDER BY id DESC`,
   });
-
-  console.log('Filas raw:', JSON.stringify(res.rows));
-  console.log('Columns:', JSON.stringify(res.columns));
-  return res.rows.map((row) => ({
-    id: row.id,
-    email: row.email,
-    telefono: row.telefono || "",
-    nombreUsuario: row.nombreUsuario || "",
-    rol: row.rol || "Cliente",
-    fechaCreacion: row.fechaCreacion || "",
-    nombre: row.nombre || "",
-    direccion: row.direccion || "",
-  }));
+  
+  console.log('Columns:', res.columns);
+  console.log('Primera fila raw:', res.rows[0]);
+  
+  return res.rows.map((row) => {
+    const obj = {};
+    res.columns.forEach((col, i) => {
+      obj[col] = row[i] ?? '';
+    });
+    return obj;
+  });
 }
 
 async function actualizarRolUsuario(id, rol) {
