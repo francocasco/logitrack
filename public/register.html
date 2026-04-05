@@ -67,11 +67,9 @@
     </div>
   </div>
 
+  <script src="/js/validation.js"></script>
   <script>
-    // Expresiones regulares para validación global
-    const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const REGEX_TELEFONO = /^\+?[\d\s\-\(\)]{6,}$/;
-    const REGEX_PASSWORD = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
+    const { REGEX_EMAIL, REGEX_TELEFONO, REGEX_PASSWORD } = window.LogiTrackValidation;
 
     function showAlert(msg, tipo = 'error') {
       const el = document.getElementById('alert-register');

@@ -3,6 +3,13 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const db = require("./db/database");
+const {
+  REGEX_EMAIL,
+  REGEX_TELEFONO,
+  REGEX_PASSWORD,
+  REGEX_SOLO_LETRAS,
+  REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS,
+} = require("./validation/regex");
 
 //Swagger
 const swaggerUi = require("swagger-ui-express");
@@ -211,11 +218,10 @@ function requireRoles(...rolesPermitidos) {
  *       409:
  *         description: Email ya registrado
  */
-// Expresiones regulares para validación global
-const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const REGEX_TELEFONO = /^\+?[\d\s\-\(\)]{6,}$/;
-const REGEX_PASSWORD = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
-const REGEX_SOLO_LETRAS = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+function tieneMinimoLetras(valor, minimo = 5) {
+  const coincidencias = String(valor || "").match(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g) || [];
+  return coincidencias.length >= minimo;
+}
 
 app.post("/api/auth/register", async (req, res) => {
   const { email, telefono, nombreUsuario, password } = req.body;
@@ -393,7 +399,7 @@ app.get("/api/auth/verificar", async (req, res) => {
  *         description: Sin permisos
  */
 app.get("/api/usuarios", requireAuth, async (req, res) => {
-  if (req.usuario.rol !== "Supervisor") {
+  if (!["Supervisor", "Operador", "Cliente"].includes(req.usuario.rol)) {
     return res
       .status(403)
       .json({ error: "No tenés permisos para ver usuarios." });
@@ -401,7 +407,11 @@ app.get("/api/usuarios", requireAuth, async (req, res) => {
 
   try {
     const usuarios = await db.listarUsuarios();
-    res.json({ usuarios });
+    const usuariosFiltrados =
+      req.usuario.rol === "Cliente"
+        ? usuarios.filter((usuario) => Number(usuario.id) === Number(req.usuario.id))
+        : usuarios;
+    res.json({ usuarios: usuariosFiltrados });
   } catch (err) {
     console.error("Error al listar usuarios:", err.message);
     res.status(500).json({ error: "No se pudieron obtener los usuarios." });
@@ -513,6 +523,17 @@ app.patch("/api/usuarios/:id/perfil", requireAuth, requireRoles("Operador", "Sup
       });
   }
 
+  if (
+    !REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(nombre.trim()) ||
+    !REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(direccion.trim())
+  ) {
+    return res
+      .status(400)
+      .json({
+        error: "El nombre/negocio y la dirección deben tener al menos 5 letras.",
+      });
+  }
+
   try {
     await db.actualizarDatosUsuario(
       req.params.id,
@@ -575,24 +596,55 @@ app.post("/api/envios", requireAuth, requireRoles("Operador", "Supervisor"), asy
           "Todos los campos son obligatorios: remitente, destinatario y producto.",
       });
   }
-  if (remitente.trim().length < 2 || destinatario.trim().length < 2) {
+  if (!tieneMinimoLetras(remitente, 5) || !tieneMinimoLetras(destinatario, 5)) {
     return res
       .status(400)
       .json({
-        error: "El remitente y destinatario deben tener al menos 2 caracteres.",
+        error: "El remitente y destinatario deben tener al menos 5 letras.",
       });
   }
-  if (!REGEX_SOLO_LETRAS.test(remitente.trim())) {
-    return res
-      .status(400)
-      .json({ error: "El remitente solo puede contener letras y espacios." });
-  }
-  if (!REGEX_SOLO_LETRAS.test(destinatario.trim())) {
+  if (!tieneMinimoLetras(producto, 3)) {
     return res
       .status(400)
       .json({
-        error: "El destinatario solo puede contener letras y espacios.",
+        error: "El producto debe tener al menos 3 letras.",
       });
+  }
+  if (direccionRemitente?.trim() && !tieneMinimoLetras(direccionRemitente, 3)) {
+    return res
+      .status(400)
+      .json({
+        error: "La dirección de remitente debe tener al menos 3 letras.",
+      });
+  }
+  if (direccionEntrega?.trim() && !tieneMinimoLetras(direccionEntrega, 3)) {
+    return res
+      .status(400)
+      .json({
+        error: "La dirección de destinatario debe tener al menos 3 letras.",
+      });
+  }
+  if (contactoRemitente?.trim()) {
+    const contacto = contactoRemitente.trim();
+    if (!REGEX_EMAIL.test(contacto) && !REGEX_TELEFONO.test(contacto)) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "El contacto de remitente debe ser un email o un teléfono válido.",
+        });
+    }
+  }
+  if (contactoDestinatario?.trim()) {
+    const contacto = contactoDestinatario.trim();
+    if (!REGEX_EMAIL.test(contacto) && !REGEX_TELEFONO.test(contacto)) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "El contacto de destinatario debe ser un email o un teléfono válido.",
+        });
+    }
   }
   if (
     remitente.length > 100 ||
@@ -703,11 +755,11 @@ app.get("/api/envios/buscar/destinatario", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Ingresá un nombre para buscar." });
   }
 
-  if (!REGEX_SOLO_LETRAS.test(nombre.trim())) {
+  if (!REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(nombre.trim())) {
     return res
       .status(400)
       .json({
-        error: "El nombre no es válido. Solo puede contener letras y espacios.",
+        error: "La búsqueda debe incluir al menos un nombre de 5 letras.",
       });
   }
 
@@ -715,8 +767,8 @@ app.get("/api/envios/buscar/destinatario", requireAuth, async (req, res) => {
     const envios = await db.buscarPorDestinatario(
       nombre.trim(),
       req.usuario.rol,
-      req.usuario.nombre,
-      req.usuario.direccion
+      req.usuario.direccion,
+      req.usuario.telefono
     );
 
     if (!envios.length) {
@@ -767,10 +819,19 @@ app.get("/api/envios/:trackingId", requireAuth, async (req, res) => {
     const envio = await db.buscarPorTracking(
       trackingId,
       req.usuario.rol,
-      req.usuario.nombre,
-      req.usuario.direccion
+      req.usuario.direccion,
+      req.usuario.telefono
     );
     if (!envio) {
+      if (req.usuario.rol === "Cliente") {
+        const envioExistente = await db.buscarPorTracking(trackingId);
+        if (envioExistente) {
+          return res.status(404).json({
+            error:
+              "No se encontró un envío asociado a la dirección y teléfono del cliente autenticado.",
+          });
+        }
+      }
       return res.status(404).json({ error: "Envío no encontrado." });
     }
     res.json(envio);

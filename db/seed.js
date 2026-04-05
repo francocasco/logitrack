@@ -11,6 +11,23 @@ const client = createClient({
 const PASSWORD_SEMILLA = 'SeedPass123';
 const HASH_ROUNDS = 10;
 
+const CANTIDADES_BASE = {
+  supervisores: 5,
+  operadores: 10,
+  clientes: 35,
+  envios: 100
+};
+
+const MINIMOS = {
+  supervisores: 3,
+  operadores: 5,
+  clientes: 10
+};
+
+function mitadConMinimo(cantidadBase, minimo) {
+  return Math.max(minimo, Math.floor(cantidadBase / 2));
+}
+
 function telefonoUnico(index) {
   return `+54 11 ${String(70000000 + index).padStart(8, '0')}`;
 }
@@ -226,9 +243,14 @@ async function sembrarUsuarios() {
   const ahora = new Date().toISOString();
   const passwordHash = bcrypt.hashSync(PASSWORD_SEMILLA, HASH_ROUNDS);
 
-  const supervisores = construirUsuarios(5, 'Supervisor', 'admin');
-  const operadores = construirUsuarios(10, 'Operador', 'operador');
-  const clientes = construirClientes(35);
+  const cantidadSupervisores = mitadConMinimo(CANTIDADES_BASE.supervisores, MINIMOS.supervisores);
+  const cantidadOperadores = mitadConMinimo(CANTIDADES_BASE.operadores, MINIMOS.operadores);
+  const cantidadClientes = mitadConMinimo(CANTIDADES_BASE.clientes, MINIMOS.clientes);
+  const cantidadEnvios = Math.floor(CANTIDADES_BASE.envios / 2);
+
+  const supervisores = construirUsuarios(cantidadSupervisores, 'Supervisor', 'admin');
+  const operadores = construirUsuarios(cantidadOperadores, 'Operador', 'operador');
+  const clientes = construirClientes(cantidadClientes);
 
   const usuariosSemilla = [...supervisores, ...operadores, ...clientes];
 
@@ -269,7 +291,7 @@ async function sembrarUsuarios() {
   }
 
   // Construir y sembrar envíos (solo usando clientes)
-  const enviolsSemilla = construirEnvios(100, clientes);
+  const enviolsSemilla = construirEnvios(cantidadEnvios, clientes);
   let enviosInsertados = 0;
 
   for (const envio of enviolsSemilla) {

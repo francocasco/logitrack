@@ -55,7 +55,7 @@ describe("TEST2 - Registrar estado inicial del envío", () => {
       .post("/api/envios")
       .set("Authorization", `Bearer ${token}`)
       .send({
-        remitente: "Juan",
+        remitente: "Juana",
         destinatario: "Pedro",
         producto: "Zapatillas",
       });
@@ -85,7 +85,7 @@ describe("TEST3 Crear envío", () => {
       .post("/api/envios")
       .set("Authorization", `Bearer ${token}`)
       .send({
-        remitente: "Juan",
+        remitente: "Juana",
         destinatario: "Pedro",
         producto: "Zapatillas",
       });
@@ -107,6 +107,50 @@ describe("TEST3 Crear envío", () => {
     expect(res.statusCode).toBe(400);
     expect(res.body.error).toBeDefined();
   });
+
+  test("ESCN3 – Registro fallido por contacto inválido", async () => {
+    const res = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        remitente: "Juana",
+        destinatario: "Pedro",
+        producto: "Zapatillas",
+        contactoRemitente: "contacto-no-valido",
+      });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("contacto de remitente");
+  });
+
+  test("ESCN4 – Registro fallido por direccion de remitente con menos de 3 letras", async () => {
+    const res = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        remitente: "Juana",
+        destinatario: "Pedro",
+        producto: "Zapatillas",
+        direccionRemitente: "12",
+      });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("dirección de remitente");
+  });
+
+  test("ESCN5 – Registro fallido por producto con menos de 3 letras", async () => {
+    const res = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        remitente: "Juana",
+        destinatario: "Pedro",
+        producto: "A1",
+      });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toContain("producto");
+  });
 });
 
 // ─────────────────────────────────────────
@@ -119,7 +163,7 @@ describe("Búsqueda de envío por Tracking ID", () => {
       .post("/api/envios")
       .set("Authorization", `Bearer ${token}`)
       .send({
-        remitente: "Juan",
+        remitente: "Juana",
         destinatario: "Pedro",
         producto: "Zapatillas",
       });
@@ -149,6 +193,71 @@ describe("Búsqueda de envío por Tracking ID", () => {
 
     expect(buscar.statusCode).toBe(404);
   });
+
+  test("ESCN4 – Cliente no puede ver un envío si no coincide dirección y teléfono", async () => {
+    const marcaTiempo = Date.now();
+    const emailCliente = `cliente.tracking.${marcaTiempo}@logitrack.com`;
+
+    const registro = await request(app).post("/api/auth/register").send({
+      email: emailCliente,
+      telefono: "+54 11 6000-0001",
+      nombreUsuario: `clientetracking${marcaTiempo}`,
+      password: "Cliente123!",
+    });
+
+    expect(registro.statusCode).toBe(201);
+
+    const listaUsuarios = await request(app)
+      .get("/api/usuarios")
+      .set("Authorization", `Bearer ${token}`);
+
+    const cliente = listaUsuarios.body.usuarios.find(
+      (usuario) => usuario.email === emailCliente,
+    );
+
+    expect(cliente).toBeDefined();
+
+    const actualizarPerfil = await request(app)
+      .patch(`/api/usuarios/${cliente.id}/perfil`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        nombre: "Cliente Tracking",
+        direccion: "Calle Cliente 123",
+      });
+
+    expect(actualizarPerfil.statusCode).toBe(200);
+
+    const loginCliente = await request(app).post("/api/auth/login").send({
+      email: emailCliente,
+      password: "Cliente123!",
+    });
+
+    expect(loginCliente.statusCode).toBe(200);
+
+    const crear = await request(app)
+      .post("/api/envios")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        remitente: "Otro remitente",
+        destinatario: "Otra persona",
+        producto: "Auriculares",
+        direccionRemitente: "Calle Remitente 456",
+        contactoRemitente: "+54 11 6000-0002",
+        contactoDestinatario: "+54 11 6000-0003",
+        direccionEntrega: "Calle Destino 789",
+      });
+
+    expect(crear.statusCode).toBe(201);
+
+    const buscar = await request(app)
+      .get(`/api/envios/${crear.body.trackingId}`)
+      .set("Authorization", `Bearer ${loginCliente.body.token}`);
+
+    expect(buscar.statusCode).toBe(404);
+    expect(buscar.body.error).toBe(
+      "No se encontró un envío asociado a la dirección y teléfono del cliente autenticado.",
+    );
+  });
 });
 
 // ─────────────────────────────────────────
@@ -163,7 +272,7 @@ describe("TEST5 Visualizar información del envío", () => {
       .set("Authorization", `Bearer ${token}`)
       .send({
         remitente: "Alguien",
-        destinatario: "Juan",
+        destinatario: "Juana",
         producto: "Sopa",
       });
 
@@ -178,7 +287,7 @@ describe("TEST5 Visualizar información del envío", () => {
 
     // Validar visualización (equivalente a validar datos)
     expect(consultar.body.remitente).toBe("Alguien");
-    expect(consultar.body.destinatario).toBe("Juan");
+    expect(consultar.body.destinatario).toBe("Juana");
     expect(consultar.body.producto).toBe("Sopa");
 
     // Validar que existan los demás campos necesarios para la pantalla
@@ -320,6 +429,65 @@ describe("TEST7 Modificación de roles de usuarios", () => {
       expect(usuarioActualizado.rol).toBe(nuevoRol);
     },
   );
+
+  test("ESCN2 Operador puede ver usuarios pero no modificar roles", async () => {
+    const marcaTiempo = Date.now();
+    const emailOperador = `operador.usuarios.${marcaTiempo}@logitrack.com`;
+
+    const registro = await request(app).post("/api/auth/register").send({
+      email: emailOperador,
+      telefono: "+54 11 6666-6666",
+      nombreUsuario: `operadorusuarios${marcaTiempo}`,
+      password: "Operador123!",
+    });
+
+    expect(registro.statusCode).toBe(201);
+
+    const listaComoSupervisor = await request(app)
+      .get("/api/usuarios")
+      .set("Authorization", `Bearer ${token}`);
+
+    const operadorCreado = listaComoSupervisor.body.usuarios.find(
+      (usuario) => usuario.email === emailOperador,
+    );
+
+    expect(operadorCreado).toBeDefined();
+
+    const cambioRolOperador = await request(app)
+      .patch(`/api/usuarios/${operadorCreado.id}/rol`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ rol: "Operador" });
+
+    expect(cambioRolOperador.statusCode).toBe(200);
+
+    const loginOperador = await request(app).post("/api/auth/login").send({
+      email: emailOperador,
+      password: "Operador123!",
+    });
+
+    expect(loginOperador.statusCode).toBe(200);
+
+    const listaComoOperador = await request(app)
+      .get("/api/usuarios")
+      .set("Authorization", `Bearer ${loginOperador.body.token}`);
+
+    expect(listaComoOperador.statusCode).toBe(200);
+    expect(Array.isArray(listaComoOperador.body.usuarios)).toBe(true);
+
+    const usuarioObjetivo = listaComoOperador.body.usuarios.find(
+      (usuario) => usuario.id !== operadorCreado.id,
+    );
+
+    expect(usuarioObjetivo).toBeDefined();
+
+    const intentoModificar = await request(app)
+      .patch(`/api/usuarios/${usuarioObjetivo.id}/rol`)
+      .set("Authorization", `Bearer ${loginOperador.body.token}`)
+      .send({ rol: "Cliente" });
+
+    expect(intentoModificar.statusCode).toBe(403);
+    expect(intentoModificar.body.error).toContain("modificar roles");
+  });
 });
 
 // ─────────────────────────────────────────
@@ -379,7 +547,7 @@ describe("TEST8 Modificar datos del envío", () => {
       .set("Authorization", `Bearer ${supervisorToken}`)
       .send({
         remitente: "Depósito Central",
-        destinatario: "Juan",
+        destinatario: "Juana",
         producto: "Notebook",
       });
 
@@ -507,6 +675,110 @@ describe("TEST8 Modificar datos del envío", () => {
       expect(res.statusCode).toBe(404);
       expect(res.body.error).toBeDefined();
     });
+
+    test("ESCN2.1 Búsqueda con números permitida si hay un nombre de 5 letras", async () => {
+      const res = await request(app)
+        .get("/api/envios/buscar/destinatario?nombre=Central 123")
+        .set("Authorization", `Bearer ${token}`);
+
+      expect([200, 404]).toContain(res.statusCode);
+      expect(res.statusCode).not.toBe(400);
+    });
+
+    test("ESCN2.2 Búsqueda inválida si no hay al menos 5 letras seguidas", async () => {
+      const res = await request(app)
+        .get("/api/envios/buscar/destinatario?nombre=Ana 12")
+        .set("Authorization", `Bearer ${token}`);
+
+      expect(res.statusCode).toBe(400);
+      expect(res.body.error).toBe(
+        "La búsqueda debe incluir al menos un nombre de 5 letras.",
+      );
+    });
+
+    test("ESCN3 Cliente solo ve resultados que coinciden con su dirección y teléfono", async () => {
+      const marcaTiempo = Date.now();
+      const emailCliente = `cliente.destinatario.${marcaTiempo}@logitrack.com`;
+      const sufijoUnico = Math.random()
+        .toString(36)
+        .replace(/[^a-z]+/g, "")
+        .slice(0, 6);
+      const destinatarioUnico = `Cliente Final ${sufijoUnico}`;
+
+      const registro = await request(app).post("/api/auth/register").send({
+        email: emailCliente,
+        telefono: "+54 11 6100-0001",
+        nombreUsuario: `clientedest${marcaTiempo}`,
+        password: "Cliente123!",
+      });
+
+      expect(registro.statusCode).toBe(201);
+
+      const listaUsuarios = await request(app)
+        .get("/api/usuarios")
+        .set("Authorization", `Bearer ${token}`);
+
+      const cliente = listaUsuarios.body.usuarios.find(
+        (usuario) => usuario.email === emailCliente,
+      );
+
+      expect(cliente).toBeDefined();
+
+      const actualizarPerfil = await request(app)
+        .patch(`/api/usuarios/${cliente.id}/perfil`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          nombre: "Cliente Destinatario",
+          direccion: "Calle Cliente 456",
+        });
+
+      expect(actualizarPerfil.statusCode).toBe(200);
+
+      const loginCliente = await request(app).post("/api/auth/login").send({
+        email: emailCliente,
+        password: "Cliente123!",
+      });
+
+      expect(loginCliente.statusCode).toBe(200);
+
+      const envioVisible = await request(app)
+        .post("/api/envios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          remitente: "Proveedor Uno",
+          destinatario: destinatarioUnico,
+          producto: "Teclado",
+          direccionRemitente: "Depósito A",
+          contactoRemitente: "+54 11 6100-9999",
+          contactoDestinatario: "+54 11 6100-0001",
+          direccionEntrega: "Calle Cliente 456",
+        });
+
+      expect(envioVisible.statusCode).toBe(201);
+
+      const envioOculto = await request(app)
+        .post("/api/envios")
+        .set("Authorization", `Bearer ${token}`)
+        .send({
+          remitente: "Proveedor Dos",
+          destinatario: destinatarioUnico,
+          producto: "Mouse",
+          direccionRemitente: "Depósito B",
+          contactoRemitente: "+54 11 6200-9999",
+          contactoDestinatario: "+54 11 6200-0002",
+          direccionEntrega: "Otra Calle 789",
+        });
+
+      expect(envioOculto.statusCode).toBe(201);
+
+      const res = await request(app)
+        .get(`/api/envios/buscar/destinatario?nombre=${encodeURIComponent(destinatarioUnico)}`)
+        .set("Authorization", `Bearer ${loginCliente.body.token}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.envios).toHaveLength(1);
+      expect(res.body.envios[0].trackingId).toBe(envioVisible.body.trackingId);
+    });
   });
 
   // ─────────────────────────────────────────
@@ -520,7 +792,7 @@ describe("TEST8 Modificar datos del envío", () => {
         .post("/api/envios")
         .set("Authorization", `Bearer ${token}`)
         .send({
-          remitente: "Juan",
+            remitente: "Juana",
           destinatario: "Pedro",
           producto: "Celular",
         });

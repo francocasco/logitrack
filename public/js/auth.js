@@ -60,11 +60,8 @@ async function cerrarSesion() {
     const userEl = document.getElementById("usuario-email");
     if (userEl) userEl.textContent = data.email;
 
-    // Mostrar Panel IA solo para Supervisor
-    if (data.rol === "Supervisor") {
-      const navIa = document.getElementById("nav-ia");
-      if (navIa) navIa.style.display = "block";
-    }
+    const navIa = document.getElementById("nav-ia");
+    if (navIa) navIa.style.display = "block";
   } catch {
     window.location.href = "/login.html";
   }

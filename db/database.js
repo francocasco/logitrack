@@ -19,6 +19,15 @@ const ESTADOS = ["creado", "en tránsito", "en sucursal", "entregado"];
 // ─── INICIALIZACIÓN ───────────────────────────────────────────
 async function inicializar() {
   await db.execute(`
+    CREATE TABLE IF NOT EXISTS historial_estados (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trackingId TEXT NOT NULL,
+      estado TEXT NOT NULL,
+      fechaCambio TEXT NOT NULL
+    )
+  `);
+
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS historial_envios (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       trackingId TEXT NOT NULL,
@@ -244,7 +253,7 @@ async function verificarToken(token) {
   if (!sesion) return null;
 
   const resUsuario = await db.execute({
-    sql: "SELECT id, email, rol FROM usuarios WHERE id = ?",
+    sql: "SELECT id, email, rol, nombre, direccion, telefono FROM usuarios WHERE id = ?",
     args: [sesion.usuarioId],
   });
 
@@ -279,6 +288,12 @@ async function crearEnvio(
       ahora, ahora, direccionRemitente, contactoRemitente,
       contactoDestinatario, direccionEntrega,
     ],
+  });
+
+  await db.execute({
+    sql: `INSERT INTO historial_estados (trackingId, estado, fechaCambio)
+          VALUES (?, 'creado', ?)`,
+    args: [trackingId, ahora],
   });
 
   return trackingId;
@@ -331,20 +346,67 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = nul
   };
 }
 
-async function buscarPorTracking(trackingId, rol = null, nombre = null, direccion = null) {
+function normalizarCampo(valor) {
+  return String(valor || "").trim().toLowerCase();
+}
+
+async function buscarPorTracking(trackingId, rol = null, direccion = null, telefono = null) {
   const res = await db.execute({
     sql: "SELECT * FROM envios WHERE trackingId = ?",
     args: [trackingId],
   });
-  return res.rows[0] || null;
+
+  const envio = res.rows[0] || null;
+  if (!envio || rol !== "Cliente") {
+    return envio;
+  }
+
+  const direccionCliente = normalizarCampo(direccion);
+  const telefonoCliente = normalizarCampo(telefono);
+
+  if (!direccionCliente || !telefonoCliente) {
+    return null;
+  }
+
+  const coincideComoRemitente =
+    normalizarCampo(envio.direccionRemitente) === direccionCliente &&
+    normalizarCampo(envio.contactoRemitente) === telefonoCliente;
+
+  const coincideComoDestinatario =
+    normalizarCampo(envio.direccionEntrega) === direccionCliente &&
+    normalizarCampo(envio.contactoDestinatario) === telefonoCliente;
+
+  return coincideComoRemitente || coincideComoDestinatario ? envio : null;
 }
 
-async function buscarPorDestinatario(nombre, rol = null, nombreUsuario = null, direccion = null) {
+async function buscarPorDestinatario(nombre, rol = null, direccion = null, telefono = null) {
   const res = await db.execute({
     sql: "SELECT * FROM envios WHERE destinatario LIKE ? ORDER BY fechaCreacion DESC",
     args: [`%${nombre}%`],
   });
-  return res.rows;
+
+  if (rol !== "Cliente") {
+    return res.rows;
+  }
+
+  const direccionCliente = normalizarCampo(direccion);
+  const telefonoCliente = normalizarCampo(telefono);
+
+  if (!direccionCliente || !telefonoCliente) {
+    return [];
+  }
+
+  return res.rows.filter((envio) => {
+    const coincideComoRemitente =
+      normalizarCampo(envio.direccionRemitente) === direccionCliente &&
+      normalizarCampo(envio.contactoRemitente) === telefonoCliente;
+
+    const coincideComoDestinatario =
+      normalizarCampo(envio.direccionEntrega) === direccionCliente &&
+      normalizarCampo(envio.contactoDestinatario) === telefonoCliente;
+
+    return coincideComoRemitente || coincideComoDestinatario;
+  });
 }
 
 async function actualizarEnvio(trackingId, destinatario, direccionEntrega) {
@@ -395,27 +457,42 @@ async function cambiarEstado(trackingId) {
     args: [nuevoEstado, ahora, trackingId],
   });
 
+  await db.execute({
+    sql: `INSERT INTO historial_estados (trackingId, estado, fechaCambio)
+          VALUES (?, ?, ?)`,
+    args: [trackingId, nuevoEstado, ahora],
+  });
+
   return { trackingId, nuevoEstado };
 }
 
 // ─── GESTIÓN USUARIOS ─────────────────────────────────────────
 async function listarUsuarios() {
   try {
-    const res = await db.execute('SELECT id, email, rol FROM usuarios');
-    console.log('RAW RESULT:', JSON.stringify(res));
-    return res.rows.map(row => ({
-      id: row.id || 0,
-      email: row.email || '',
-      telefono: '',
-      nombreUsuario: '',
-      rol: row.rol || 'Cliente',
-      fechaCreacion: '',
-      nombre: '',
-      direccion: ''
-    }));
+    const res = await db.execute({
+      sql: `SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion, nombre, direccion
+            FROM usuarios ORDER BY id DESC`,
+    });
+
+    return res.rows.map((row) => {
+      const obj = {};
+      res.columns.forEach((col, i) => {
+        obj[col] = row[i] ?? "";
+      });
+      return obj;
+    });
   } catch (err) {
-    console.error('ERROR EN listarUsuarios:', err.message, err.stack);
-    throw err;
+    const resFallback = await db.execute("SELECT id, email, rol FROM usuarios");
+    return resFallback.rows.map((row) => ({
+      id: row.id || 0,
+      email: row.email || "",
+      telefono: "",
+      nombreUsuario: "",
+      rol: row.rol || "Cliente",
+      fechaCreacion: "",
+      nombre: "",
+      direccion: "",
+    }));
   }
 }
 
@@ -478,7 +555,10 @@ async function registrarHistorial(envio) {
 async function obtenerHistorial(trackingId = null) {
   if (trackingId) {
     const res = await db.execute({
-      sql: "SELECT * FROM historial_envios WHERE trackingId = ? ORDER BY fechaEntrega DESC",
+      sql: `SELECT trackingId, estado, fechaCambio
+            FROM historial_estados
+            WHERE trackingId = ?
+            ORDER BY fechaCambio DESC`,
       args: [trackingId],
     });
     return res.rows;

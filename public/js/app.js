@@ -8,11 +8,11 @@ const paginacion = {
 
 const PAGINAS_RESTRINGIDAS_CLIENTE = new Set([
   "page-crear",
-  "page-usuarios",
   "page-setup",
+  "page-ia",
 ]);
 
-const PAGINAS_RESTRINGIDAS_OPERADOR = new Set(["page-usuarios", "page-ia"]);
+const PAGINAS_RESTRINGIDAS_OPERADOR = new Set(["page-ia"]);
 const ESTADOS_ENVIO = ["creado", "en tránsito", "en sucursal", "entregado"];
 const ICONOS_ESTADO_ENVIO = ["📋", "🚚", "🏢", "✅"];
 
@@ -153,8 +153,39 @@ async function obtenerUsuarioActual() {
   return data;
 }
 
+async function actualizarTextosSeccionUsuarios() {
+  try {
+    const usuarioActual = await obtenerUsuarioActual();
+    const esCliente = usuarioActual?.rol === "Cliente";
+
+    const navUsuariosText = document.getElementById("nav-usuarios-text");
+    const usuariosPageTitle = document.getElementById("usuarios-page-title");
+    const usuariosPageDescription = document.getElementById("usuarios-page-description");
+
+    if (navUsuariosText) {
+      navUsuariosText.textContent = esCliente ? "Usuario" : "Usuarios";
+    }
+    if (usuariosPageTitle) {
+      usuariosPageTitle.textContent = esCliente ? "Usuario" : "Usuarios";
+    }
+    if (usuariosPageDescription) {
+      usuariosPageDescription.textContent = esCliente
+        ? "Visualizá los datos de tu cuenta."
+        : "Administración de cuentas y roles.";
+    }
+  } catch (_) {
+    // Si no se puede verificar sesión en este momento, mantenemos los textos por defecto.
+  }
+}
+
 // ─── VALIDACIONES FRONTEND ────────────────────────────────────
-const REGEX_SOLO_LETRAS = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+const {
+  REGEX_SOLO_LETRAS,
+  REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS,
+  REGEX_EMAIL,
+  REGEX_TELEFONO,
+  REGEX_TRACKING_ID,
+} = window.LogiTrackValidation;
 
 function validarCampo(valor, nombre, minLen = 2, maxLen = 100) {
   if (!valor || valor.trim().length === 0)
@@ -173,6 +204,25 @@ function validarSoloLetras(valor, nombre) {
   return null;
 }
 
+function validarMinimoLetras(valor, nombre, minimo = 5) {
+  const letras = (valor.match(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g) || []).length;
+  if (letras < minimo) {
+    return `El campo ${nombre} debe tener al menos ${minimo} letras.`;
+  }
+  return null;
+}
+
+function validarMinimoLetrasOpcional(valor, nombre, minimo = 3) {
+  if (!valor) return null;
+  return validarMinimoLetras(valor, nombre, minimo);
+}
+
+function validarEmailOTelefono(valor, nombre) {
+  if (!valor) return null;
+  if (REGEX_EMAIL.test(valor) || REGEX_TELEFONO.test(valor)) return null;
+  return `El campo ${nombre} debe ser un email o un telefono valido.`;
+}
+
 // ─── CREAR ENVÍO ──────────────────────────────────────────────
 async function crearEnvio(e) {
   e.preventDefault();
@@ -189,13 +239,18 @@ async function crearEnvio(e) {
   const errRemitente = validarCampo(remitente, "remitente");
   const errDestinatario = validarCampo(destinatario, "destinatario");
   const errProducto = validarCampo(producto, "producto", 2, 200);
-  const errRemitenteLetras = validarSoloLetras(remitente, "remitente");
-  const errDestinatarioLetras = validarSoloLetras(destinatario, "destinatario");
+  const errProductoLetras = validarMinimoLetras(producto, "producto", 3);
+  const errRemitenteLetras = validarMinimoLetras(remitente, "remitente", 5);
+  const errDestinatarioLetras = validarMinimoLetras(destinatario, "destinatario", 5);
+  const errDireccionRemitente = validarMinimoLetrasOpcional(direccionRemitente, "direccion de remitente", 3);
+  const errDireccionDestinatario = validarMinimoLetrasOpcional(direccionEntrega, "direccion de destinatario", 3);
+  const errContactoRemitente = validarEmailOTelefono(contactoRemitente, "contacto remitente");
+  const errContactoDestinatario = validarEmailOTelefono(contactoDestinatario, "contacto destinatario");
 
-  if (errRemitente || errDestinatario || errProducto || errRemitenteLetras || errDestinatarioLetras) {
+  if (errRemitente || errDestinatario || errProducto || errProductoLetras || errRemitenteLetras || errDestinatarioLetras || errDireccionRemitente || errDireccionDestinatario || errContactoRemitente || errContactoDestinatario) {
     showAlert(
       "alert-crear",
-      errRemitente || errDestinatario || errProducto || errRemitenteLetras || errDestinatarioLetras,
+      errRemitente || errDestinatario || errProducto || errProductoLetras || errRemitenteLetras || errDestinatarioLetras || errDireccionRemitente || errDireccionDestinatario || errContactoRemitente || errContactoDestinatario,
       "error",
     );
     return;
@@ -296,10 +351,15 @@ async function cargarLista() {
 async function cargarUsuarios() {
   const tbody = document.getElementById("usuarios-tbody");
   if (!tbody) return;
+  const usuarioActual = await obtenerUsuarioActual();
+  const esSoloLectura = ["Cliente", "Operador"].includes(usuarioActual?.rol);
+  const accionHeader = document.getElementById("usuarios-col-accion");
+  if (accionHeader) accionHeader.style.display = esSoloLectura ? "none" : "";
+  const columnasVisibles = esSoloLectura ? 7 : 8;
 
   tbody.innerHTML = `
     <tr>
-      <td colspan="6" style="color:var(--text-muted);text-align:center;padding:24px">
+      <td colspan="${columnasVisibles}" style="color:var(--text-muted);text-align:center;padding:24px">
         Cargando usuarios...
       </td>
     </tr>
@@ -323,7 +383,7 @@ async function cargarUsuarios() {
     if (!usuarios.length) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6">
+          <td colspan="${columnasVisibles}">
             <div class="empty">
               <div class="empty-icon">👥</div>
               <p>No hay usuarios registrados.</p>
@@ -344,18 +404,26 @@ async function cargarUsuarios() {
         <td>${u.nombreUsuario}</td>
         <td>${u.nombre || ""}</td>
         <td>${u.direccion || ""}</td>
-        <td>
-          <select data-user-id="${u.id}">
-            <option value="Cliente" ${u.rol === "Cliente" ? "selected" : ""}>Cliente</option>
-            <option value="Operador" ${u.rol === "Operador" ? "selected" : ""}>Operador</option>
-            <option value="Supervisor" ${u.rol === "Supervisor" ? "selected" : ""}>Supervisor</option>
-          </select>
-        </td>
-        <td>
-          <button class="btn btn-secondary btn-sm" data-action="guardar-rol" data-user-id="${u.id}">
-            Aceptar
-          </button>
-        </td>
+        ${
+          esSoloLectura
+            ? `
+          <td>${u.rol}</td>
+        `
+            : `
+          <td>
+            <select data-user-id="${u.id}">
+              <option value="Cliente" ${u.rol === "Cliente" ? "selected" : ""}>Cliente</option>
+              <option value="Operador" ${u.rol === "Operador" ? "selected" : ""}>Operador</option>
+              <option value="Supervisor" ${u.rol === "Supervisor" ? "selected" : ""}>Supervisor</option>
+            </select>
+          </td>
+          <td>
+            <button class="btn btn-secondary btn-sm" data-action="guardar-rol" data-user-id="${u.id}">
+              Aceptar
+            </button>
+          </td>
+        `
+        }
       </tr>
     `,
       )
@@ -416,7 +484,7 @@ async function buscarEnvio() {
     return;
   }
 
-  if (!/^[A-Z]{2}-\d{6}$/.test(trackingId)) {
+  if (!REGEX_TRACKING_ID.test(trackingId)) {
     document.getElementById("resultado-busqueda").innerHTML =
       `<div class="alert alert-error show">❌ El Tracking ID no es válido. Debe tener el formato: XX-XXXXXX (ej: AB-123456).</div>`;
     return;
@@ -516,8 +584,8 @@ async function buscarPorDestinatario() {
     return;
   }
 
-  if (!REGEX_SOLO_LETRAS.test(nombre)) {
-    resultDiv.innerHTML = `<div class="alert alert-error show">❌ El nombre no es válido. Solo puede contener letras y espacios.</div>`;
+  if (!REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(nombre)) {
+    resultDiv.innerHTML = `<div class="alert alert-error show">❌ La búsqueda debe incluir al menos un nombre de 5 letras.</div>`;
     return;
   }
 
@@ -1063,9 +1131,19 @@ async function guardarSetupCliente() {
 
   const errNombre = validarCampo(nombre, "nombre/negocio");
   const errDireccion = validarCampo(direccion, "dirección");
+  const errNombreLetras = !REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(nombre)
+    ? "El nombre/negocio debe tener al menos 5 letras."
+    : null;
+  const errDireccionLetras = !REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(direccion)
+    ? "La dirección debe tener al menos 5 letras."
+    : null;
 
-  if (errNombre || errDireccion) {
-    showAlert("alert-setup", `❌ ${errNombre || errDireccion}`, "error");
+  if (errNombre || errDireccion || errNombreLetras || errDireccionLetras) {
+    showAlert(
+      "alert-setup",
+      `❌ ${errNombre || errDireccion || errNombreLetras || errDireccionLetras}`,
+      "error",
+    );
     return;
   }
 
@@ -1112,6 +1190,8 @@ async function guardarSetupCliente() {
 
 // ─── INIT ─────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
+  actualizarTextosSeccionUsuarios();
+
   document.querySelectorAll(".nav a").forEach((a) => {
     a.addEventListener("click", (e) => {
       e.preventDefault();
@@ -1289,6 +1369,13 @@ async function predecirEnvio() {
     statusBox.style.display = "block";
     statusBox.className = "ia-status-box error";
     statusBox.textContent = "✗ Ingresá un Tracking ID.";
+    return;
+  }
+
+  if (!REGEX_TRACKING_ID.test(trackingId)) {
+    statusBox.style.display = "block";
+    statusBox.className = "ia-status-box error";
+    statusBox.textContent = "✗ El Tracking ID no es válido. Debe tener el formato: XX-XXXXXX (ej: AB-123456).";
     return;
   }
 

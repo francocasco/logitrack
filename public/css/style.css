@@ -102,6 +102,13 @@ body {
   min-width: 100%;
 }
 
+/* Tarjeta de lista de envios un poco más ancha para que no se recorte el botón Ver */
+#page-lista .card {
+  width: calc(100vw - 320px);
+  max-width: 1180px;
+  min-width: 100%;
+}
+
 /* ── FORMULARIO ── */
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
@@ -119,6 +126,60 @@ body {
 }
 .form-group input:focus { border-color: var(--accent); }
 .form-group input::placeholder { color: var(--text-muted); }
+
+/* ── DROPDOWNS ── */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 34px 9px 12px;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.4;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition), background-color var(--transition);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--accent) 50%),
+    linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) calc(50% - 2px),
+    calc(100% - 11px) calc(50% - 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+select:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  background-color: var(--surface);
+}
+
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+select option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.form-group select {
+  width: 100%;
+}
+
+td select {
+  min-width: 130px;
+}
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
@@ -170,6 +231,12 @@ td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--surface2); }
 .tracking-cell { font-family: var(--mono); font-weight: 500; color: var(--accent); font-size: 12px; }
+
+#page-lista th:last-child,
+#page-lista td:last-child {
+  min-width: 110px;
+  overflow: visible;
+}
 
 /* ── BADGE DE ESTADO ── */
 .badge {
