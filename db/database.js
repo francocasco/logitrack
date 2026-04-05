@@ -400,21 +400,23 @@ async function cambiarEstado(trackingId) {
 
 // ─── GESTIÓN USUARIOS ─────────────────────────────────────────
 async function listarUsuarios() {
-  const res = await db.execute({
-    sql: `SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion, nombre, direccion
-          FROM usuarios ORDER BY id DESC`,
-  });
-  
-  console.log('Columns:', res.columns);
-  console.log('Primera fila raw:', res.rows[0]);
-  
-  return res.rows.map((row) => {
-    const obj = {};
-    res.columns.forEach((col, i) => {
-      obj[col] = row[i] ?? '';
-    });
-    return obj;
-  });
+  try {
+    const res = await db.execute('SELECT id, email, rol FROM usuarios');
+    console.log('RAW RESULT:', JSON.stringify(res));
+    return res.rows.map(row => ({
+      id: row.id || 0,
+      email: row.email || '',
+      telefono: '',
+      nombreUsuario: '',
+      rol: row.rol || 'Cliente',
+      fechaCreacion: '',
+      nombre: '',
+      direccion: ''
+    }));
+  } catch (err) {
+    console.error('ERROR EN listarUsuarios:', err.message, err.stack);
+    throw err;
+  }
 }
 
 async function actualizarRolUsuario(id, rol) {
