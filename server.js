@@ -715,8 +715,7 @@ app.get("/api/envios", requireAuth, async (req, res) => {
       porPagina,
       estado,
       req.usuario.rol,
-      req.usuario.nombre,
-      req.usuario.direccion
+      req.usuario.email
     );
     res.json(resultado);
   } catch (err) {

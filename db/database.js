@@ -302,18 +302,24 @@ async function crearEnvio(
 async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = null, nombre = null, direccion = null) {
   const offset = (pagina - 1) * porPagina;
 
-  // Si es Cliente, filtrar solo sus envíos (remitente o destinatario)
   let whereClause = "";
   let args = [];
   let argsCount = [];
 
-  if (rol === "Cliente" && nombre) {
+  if (rol === "Cliente") {
+    if (!nombre && !direccion) {
+      // Cliente sin datos de contacto: no mostrar nada
+      return {
+        envios: [],
+        paginacion: { total: 0, pagina, porPagina, totalPaginas: 0 }
+      };
+    }
     if (estado) {
-      whereClause = "WHERE estado = ? AND (remitente LIKE ? OR destinatario LIKE ?)";
+      whereClause = "WHERE estado = ? AND (contactoDestinatario LIKE ? OR contactoRemitente LIKE ?)";
       args = [estado, `%${nombre}%`, `%${nombre}%`, porPagina, offset];
       argsCount = [estado, `%${nombre}%`, `%${nombre}%`];
     } else {
-      whereClause = "WHERE (remitente LIKE ? OR destinatario LIKE ?)";
+      whereClause = "WHERE (contactoDestinatario LIKE ? OR contactoRemitente LIKE ?)";
       args = [`%${nombre}%`, `%${nombre}%`, porPagina, offset];
       argsCount = [`%${nombre}%`, `%${nombre}%`];
     }
@@ -322,29 +328,6 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = nul
     args = estado ? [estado, porPagina, offset] : [porPagina, offset];
     argsCount = estado ? [estado] : [];
   }
-
-  const resEnvios = await db.execute({
-    sql: `SELECT * FROM envios ${whereClause} ORDER BY fechaCreacion DESC LIMIT ? OFFSET ?`,
-    args,
-  });
-
-  const resTotal = await db.execute({
-    sql: `SELECT COUNT(*) as total FROM envios ${whereClause}`,
-    args: argsCount,
-  });
-
-  const total = Number(resTotal.rows[0].total);
-
-  return {
-    envios: resEnvios.rows,
-    paginacion: {
-      total,
-      pagina,
-      porPagina,
-      totalPaginas: Math.ceil(total / porPagina),
-    },
-  };
-}
 
 function normalizarCampo(valor) {
   return String(valor || "").trim().toLowerCase();
