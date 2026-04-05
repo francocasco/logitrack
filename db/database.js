@@ -335,17 +335,19 @@ async function cambiarEstado(trackingId) {
 
 async function listarUsuarios() {
   const res = await db.execute({
-    sql: `SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion
+    sql: `SELECT id, email, telefono, nombreUsuario, rol, fechaCreacion, nombre, direccion
           FROM usuarios
           ORDER BY id DESC`
   });
   return res.rows.map(row => ({
     id: row.id,
-    email: row.email,
+    email: row.email || '',
     telefono: row.telefono || '',
     nombreUsuario: row.nombreUsuario || '',
     rol: row.rol || 'Cliente',
-    fechaCreacion: row.fechaCreacion || ''
+    fechaCreacion: row.fechaCreacion || '',
+    nombre: row.nombre || '',
+    direccion: row.direccion || ''
   }));
 }
 
@@ -358,15 +360,17 @@ async function actualizarRolUsuario(id, rol) {
 
 async function listarClientesParaSetup() {
   const res = await db.execute({
-    sql: `SELECT id, email, nombreUsuario
+    sql: `SELECT id, email, nombreUsuario, nombre, direccion
           FROM usuarios
           WHERE rol = 'Cliente'
           ORDER BY id DESC`
   });
   return res.rows.map(row => ({
     id: row.id,
-    email: row.email,
-    nombreUsuario: row.nombreUsuario || ''
+    email: row.email || '',
+    nombreUsuario: row.nombreUsuario || '',
+    nombre: row.nombre || '',
+    direccion: row.direccion || ''
   }));
 }
 
