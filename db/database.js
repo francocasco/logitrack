@@ -434,17 +434,20 @@ async function actualizarDatosUsuario(id, nombre, direccion) {
 }
 
 async function listarClientesParaSetup() {
-  const res = await db.execute({
-    sql: `SELECT id, email, nombreUsuario, nombre, direccion
-          FROM usuarios WHERE rol = 'Cliente' ORDER BY id DESC`,
-  });
-  return res.rows.map((row) => ({
-    id: row.id,
-    email: row.email,
-    nombreUsuario: row.nombreUsuario || "",
-    nombre: row.nombre || "",
-    direccion: row.direccion || "",
-  }));
+  try {
+    const res = await db.execute("SELECT id, email, nombreUsuario FROM usuarios WHERE rol = 'Cliente'");
+    console.log('RAW CLIENTES:', JSON.stringify(res));
+    return res.rows.map(row => ({
+      id: row.id || 0,
+      email: row.email || '',
+      nombreUsuario: row.nombreUsuario || '',
+      nombre: '',
+      direccion: ''
+    }));
+  } catch (err) {
+    console.error('ERROR EN listarClientesParaSetup:', err.message, err.stack);
+    throw err;
+  }
 }
 
 // ─── HISTORIAL ────────────────────────────────────────────────
