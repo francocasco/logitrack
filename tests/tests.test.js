@@ -43,13 +43,13 @@ function buildRegisterPayload(prefix = "usuario") {
 function buildShipmentPayload(overrides = {}) {
   const suffix = nextValue("envio");
   return {
-    remitente: `Remitente ${suffix}`,
-    destinatario: `Destino ${suffix}`,
-    producto: `Producto ${suffix}`,
-    direccionRemitente: `Calle Remitente ${suffix}`,
+    remitente: "Remitente Prueba",
+    destinatario: "Destino Prueba",
+    producto: "Producto Prueba",
+    direccionRemitente: `Calle Remitente ${100 + sequence}`,
     contactoRemitente: `${suffix}@remitente.test`,
     contactoDestinatario: `${suffix}@destinatario.test`,
-    direccionEntrega: `Calle Entrega ${suffix}`,
+    direccionEntrega: `Calle Entrega ${200 + sequence}`,
     ...overrides,
   };
 }
@@ -297,14 +297,14 @@ describe("CP-05 Registro fallido de envíos", () => {
       error: "Todos los campos son obligatorios",
     },
     {
-      name: "remitente con menos de 5 letras",
-      payload: () => buildShipmentPayload({ remitente: "Ana1" }),
-      error: "al menos 5 letras",
+      name: "remitente sin nombre y apellido válidos",
+      payload: () => buildShipmentPayload({ remitente: "Ana" }),
+      error: "dos palabras de 3 letras",
     },
     {
-      name: "destinatario con menos de 5 letras",
-      payload: () => buildShipmentPayload({ destinatario: "Paz1" }),
-      error: "al menos 5 letras",
+      name: "destinatario sin nombre y apellido válidos",
+      payload: () => buildShipmentPayload({ destinatario: "Paz" }),
+      error: "dos palabras de 3 letras",
     },
     {
       name: "contacto remitente inválido",
@@ -317,19 +317,19 @@ describe("CP-05 Registro fallido de envíos", () => {
       error: "contacto de destinatario",
     },
     {
-      name: "dirección remitente demasiado corta",
-      payload: () => buildShipmentPayload({ direccionRemitente: "12" }),
+      name: "dirección remitente sin formato requerido",
+      payload: () => buildShipmentPayload({ direccionRemitente: "Calle" }),
       error: "dirección de remitente",
     },
     {
-      name: "dirección destinatario demasiado corta",
+      name: "dirección destinatario sin formato requerido",
       payload: () => buildShipmentPayload({ direccionEntrega: "AB" }),
       error: "dirección de destinatario",
     },
     {
       name: "producto demasiado corto",
       payload: () => buildShipmentPayload({ producto: "TV" }),
-      error: "producto debe tener al menos 3 letras",
+      error: "producto debe tener al menos 5 letras",
     },
   ])("CP-05 Registro fallido: $name", async ({ payload, error }) => {
     const operator = await createUserWithRole("Operador");
@@ -577,7 +577,7 @@ describe("CP-15 Setup de clientes", () => {
     const user = await getUserByEmail(adminToken, registered.payload.email);
     const response = await updateUserProfile(operator.token, user.id, {
       nombre: "Cliente Casa Central",
-      direccion: "Ubicacion de Entrega Central",
+      direccion: "Ubicacion Entrega 100",
     });
 
     expect(response.statusCode).toBe(200);
@@ -868,7 +868,7 @@ describe("CP-37 Acceso a datos - Visualización lista envíos", () => {
     // Create shipment belonging to Cliente A
     const shipmentA = await createShipment(operator.token, {
       remitente: "Cliente Jose",
-      destinatario: "Destinatario A",
+      destinatario: "Destinatario Alfa",
       producto: "Producto A",
       direccionRemitente: "Calle Principal 123",
       contactoRemitente: `${clienteA.credentials.email}`,
@@ -878,7 +878,7 @@ describe("CP-37 Acceso a datos - Visualización lista envíos", () => {
     // Create shipment NOT belonging to Cliente A (belongs to different person)
     const shipmentB = await createShipment(operator.token, {
       remitente: "Cliente Pedro",
-      destinatario: "Destinatario B",
+      destinatario: "Destinatario Beta",
       producto: "Producto B",
       direccionRemitente: "Calle Secundaria 456",
       contactoRemitente: `${clienteB.payload.email}`,
@@ -946,7 +946,7 @@ describe("CP-38 Acceso a datos - Búsqueda de envíos", () => {
     const searchResponse = await request(app)
       .get("/api/envios/buscar/destinatario")
       .set("Authorization", `Bearer ${clienteA.token}`)
-      .query({ nombre: "Guadalupe" });
+      .query({ nombre: "Guadalupe Lopez" });
 
     expect(searchResponse.statusCode).toBe(404);
     expect(searchResponse.body.error).toContain("No se encontraron envíos");
