@@ -191,15 +191,18 @@
 
         if (!res.ok) {
           showAlert(data.error);
+          btn.disabled = false;
+          btn.textContent = 'Ingresar →';
           return;
         }
 
         localStorage.setItem('logitrack_token', data.token);
-        window.location.href = '/';
+        showAlert('¡Sesión iniciada correctamente! Redirigiendo...', 'success');
+        btn.textContent = 'Redirigiendo...';
+        setTimeout(() => { window.location.href = '/'; }, 2000);
 
       } catch {
         showAlert('No se pudo conectar con el servidor.');
-      } finally {
         btn.disabled = false;
         btn.textContent = 'Ingresar →';
       }
