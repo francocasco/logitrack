@@ -692,7 +692,7 @@ describe("CP-24 y CP-25 Búsqueda por destinatario", () => {
   });
 });
 
-describe("CP-26, CP-27, CP-28 y CP-29 Historial global y dataset", () => {
+describe("CP-26, CP-27 y CP-29 Historial global y dataset", () => {
   test("CP-26 Se registra un envío entregado en historial global", async () => {
     const operator = await createUserWithRole("Operador");
     const adminToken = await loginAdmin();
@@ -721,33 +721,14 @@ describe("CP-26, CP-27, CP-28 y CP-29 Historial global y dataset", () => {
     expect(fs.existsSync(path.join(testArtifactsDir, "training_data.csv"))).toBe(true);
   });
 
-  test("CP-28 No se puede estructurar dos veces en menos de 10 días", async () => {
-    const operator = await createUserWithRole("Operador");
+  test("CP-29 Estructuración fallida sin datos históricos", async () => {
     const adminToken = await loginAdmin();
-
-    await createDeliveredShipments(operator.token, 5);
-
-    const first = await request(app)
-      .post("/api/dataset/estructurar")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    const second = await request(app)
-      .post("/api/dataset/estructurar")
-      .set("Authorization", `Bearer ${adminToken}`);
-
-    expect(first.statusCode).toBe(200);
-    expect(second.statusCode).toBe(400);
-    expect(second.body.error).toContain("última estructuración");
-  });
-
-  test("CP-29 Un cliente no puede estructurar el dataset", async () => {
-    const clientUser = await createUserWithRole("Cliente");
     const response = await request(app)
       .post("/api/dataset/estructurar")
-      .set("Authorization", `Bearer ${clientUser.token}`);
+      .set("Authorization", `Bearer ${adminToken}`);
 
-    expect(response.statusCode).toBe(403);
-    expect(response.body.error).toContain("No tenés permisos para estructurar el dataset");
+    expect(response.statusCode).toBe(400);
+    expect(response.body.error).toContain("No hay datos disponibles para estructurar");
   });
 });
 

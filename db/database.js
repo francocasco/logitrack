@@ -597,20 +597,6 @@ async function obtenerHistorial(trackingId = null) {
 // ─── DATASET / ML ─────────────────────────────────────────────
 async function estructurarDataset() {
   try {
-    const resLog = await db.execute(
-      "SELECT * FROM log_estructuracion ORDER BY fechaUltima DESC LIMIT 1"
-    );
-    if (resLog.rows.length > 0) {
-      const ultimaEstructuracion = new Date(resLog.rows[0].fechaUltima);
-      const diasTranscurridos = (new Date() - ultimaEstructuracion) / (1000 * 60 * 60 * 24);
-      if (diasTranscurridos < 10) {
-        return {
-          ok: false,
-          mensaje: `La última estructuración fue hace ${Math.floor(diasTranscurridos)} días. Espera ${Math.ceil(10 - diasTranscurridos)} días más.`,
-        };
-      }
-    }
-
     const resHistorial = await db.execute(
       "SELECT * FROM historial_envios ORDER BY fechaCreacion ASC"
     );
