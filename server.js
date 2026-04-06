@@ -39,6 +39,20 @@ const swaggerSpec = swaggerJsDoc(swaggerOptions);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 const PORT = process.env.PORT || 3000;
 
+function getArtifactsDir() {
+  return process.env.DATASETS_DIR
+    ? path.resolve(process.env.DATASETS_DIR)
+    : path.join(__dirname, "datasets");
+}
+
+function getDatasetPath() {
+  return path.join(getArtifactsDir(), "training_data.csv");
+}
+
+function getModelPath() {
+  return path.join(getArtifactsDir(), "model.json");
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -1051,13 +1065,13 @@ app.post("/api/dataset/estructurar", requireAuth, async (req, res) => {
     }
 
     // Crear carpeta datasets si no existe
-    const datasetsDir = path.join(__dirname, "datasets");
+    const datasetsDir = getArtifactsDir();
     if (!fs.existsSync(datasetsDir)) {
       fs.mkdirSync(datasetsDir, { recursive: true });
     }
 
     // Guardar CSV
-    const csvPath = path.join(datasetsDir, "training_data.csv");
+    const csvPath = getDatasetPath();
     fs.writeFileSync(csvPath, resultado.csvContent, "utf-8");
 
     res.json({
@@ -1089,7 +1103,7 @@ app.post("/api/dataset/estructurar", requireAuth, async (req, res) => {
  *         description: Error al ejecutar el script
  */
 app.post("/api/modelo/entrenar", requireAuth, requireRoles("Supervisor"), async (req, res) => {
-  const csvPath = path.join(__dirname, "datasets", "training_data.csv");
+  const csvPath = getDatasetPath();
 
   if (!fs.existsSync(csvPath)) {
     return res.status(400).json({ error: "No se encontró el dataset. Primero estructurá el dataset." });
@@ -1137,7 +1151,7 @@ app.post("/api/modelo/predecir", requireAuth, requireRoles("Supervisor"), async 
     return res.status(400).json({ error: "Ingresá un Tracking ID para predecir." });
   }
 
-  const modelPath = path.join(__dirname, "datasets", "model.json");
+  const modelPath = getModelPath();
   if (!fs.existsSync(modelPath)) {
     return res.status(400).json({ error: "El modelo no está entrenado. Completá los pasos 1 y 2 primero." });
   }
