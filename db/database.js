@@ -669,4 +669,4 @@ module.exports = {
   obtenerHistorial,
   estructurarDataset,
   limpiarHistorialYLog,
-}
+};
