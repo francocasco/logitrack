@@ -328,6 +328,7 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = nul
     args = estado ? [estado, porPagina, offset] : [porPagina, offset];
     argsCount = estado ? [estado] : [];
   }
+}
 
 function normalizarCampo(valor) {
   return String(valor || "").trim().toLowerCase();
@@ -668,4 +669,4 @@ module.exports = {
   obtenerHistorial,
   estructurarDataset,
   limpiarHistorialYLog,
-};
+}
