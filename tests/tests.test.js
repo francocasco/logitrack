@@ -84,7 +84,6 @@ async function resetState() {
     "historial_envios",
     "log_estructuracion",
     "envios",
-    "usuarios",
   ];
 
   for (const table of tables) {
@@ -93,7 +92,7 @@ async function resetState() {
 
   try {
     await client.execute(
-      "DELETE FROM sqlite_sequence WHERE name IN ('historial_estados', 'historial_envios', 'log_estructuracion', 'envios', 'usuarios')",
+      "DELETE FROM sqlite_sequence WHERE name IN ('historial_estados', 'historial_envios', 'log_estructuracion', 'envios')",
     );
   } catch (error) {
     if (!error.message.includes("no such table")) {
@@ -101,10 +100,18 @@ async function resetState() {
     }
   }
 
+  await client.execute({
+    sql: "DELETE FROM usuarios WHERE email <> ?",
+    args: [process.env.ADMIN_EMAIL],
+  });
+
+  await client.execute({
+    sql: "UPDATE usuarios SET intentosFallidos = 0, bloqueadoHasta = NULL WHERE email = ?",
+    args: [process.env.ADMIN_EMAIL],
+  });
+
   fs.rmSync(testArtifactsDir, { recursive: true, force: true });
   fs.mkdirSync(testArtifactsDir, { recursive: true });
-
-  await db.inicializar();
 }
 
 async function login(email, password) {
