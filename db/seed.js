@@ -2,6 +2,14 @@ require('dotenv').config();
 const { createClient } = require('@libsql/client');
 const bcrypt = require('bcryptjs');
 const { inicializar } = require('./database');
+const {
+  REGEX_EMAIL,
+  REGEX_TELEFONO,
+  REGEX_PASSWORD,
+  REGEX_NOMBRE_PERSONA,
+  REGEX_DIRECCION,
+  REGEX_PRODUCTO,
+} = require('../validation/regex');
 
 const client = createClient({
   url: process.env.TURSO_URL || 'file:./db/database.db',
@@ -23,6 +31,58 @@ const MINIMOS = {
   operadores: 5,
   clientes: 10
 };
+
+function validarCampoRegex(valor, regex, etiqueta) {
+  if (!regex.test(String(valor || '').trim())) {
+    throw new Error(`Valor inválido en seed para ${etiqueta}: "${valor}"`);
+  }
+}
+
+function validarUsuarioSemilla(usuario) {
+  validarCampoRegex(usuario.email, REGEX_EMAIL, 'usuario.email');
+  validarCampoRegex(usuario.telefono, REGEX_TELEFONO, 'usuario.telefono');
+  validarCampoRegex(PASSWORD_SEMILLA, REGEX_PASSWORD, 'PASSWORD_SEMILLA');
+
+  if (String(usuario.nombreUsuario || '').trim().length < 5) {
+    throw new Error(`Valor inválido en seed para usuario.nombreUsuario: "${usuario.nombreUsuario}"`);
+  }
+
+  if (usuario.nombre) {
+    validarCampoRegex(usuario.nombre, REGEX_NOMBRE_PERSONA, 'usuario.nombre');
+  }
+
+  if (usuario.direccion) {
+    validarCampoRegex(usuario.direccion, REGEX_DIRECCION, 'usuario.direccion');
+  }
+}
+
+function validarEnvioSemilla(envio) {
+  validarCampoRegex(envio.remitente, REGEX_NOMBRE_PERSONA, 'envio.remitente');
+  validarCampoRegex(envio.destinatario, REGEX_NOMBRE_PERSONA, 'envio.destinatario');
+  validarCampoRegex(envio.producto, REGEX_PRODUCTO, 'envio.producto');
+
+  if (envio.direccionRemitente) {
+    validarCampoRegex(envio.direccionRemitente, REGEX_DIRECCION, 'envio.direccionRemitente');
+  }
+
+  if (envio.direccionEntrega) {
+    validarCampoRegex(envio.direccionEntrega, REGEX_DIRECCION, 'envio.direccionEntrega');
+  }
+
+  if (envio.contactoRemitente) {
+    const contacto = String(envio.contactoRemitente).trim();
+    if (!REGEX_EMAIL.test(contacto) && !REGEX_TELEFONO.test(contacto)) {
+      throw new Error(`Valor inválido en seed para envio.contactoRemitente: "${envio.contactoRemitente}"`);
+    }
+  }
+
+  if (envio.contactoDestinatario) {
+    const contacto = String(envio.contactoDestinatario).trim();
+    if (!REGEX_EMAIL.test(contacto) && !REGEX_TELEFONO.test(contacto)) {
+      throw new Error(`Valor inválido en seed para envio.contactoDestinatario: "${envio.contactoDestinatario}"`);
+    }
+  }
+}
 
 function mitadConMinimo(cantidadBase, minimo) {
   return Math.max(minimo, Math.floor(cantidadBase / 2));
@@ -48,40 +108,40 @@ function construirUsuarios(cantidad, rol, prefijo) {
 }
 
 const CLIENTES_PERFILES = [
-  { nombre: 'Farmacia San Martin', direccion: 'Av. San Martin 2450, CABA' },
-  { nombre: 'Libreria El Atril', direccion: 'Av. Rivadavia 11876, CABA' },
+  { nombre: 'Martin Suarez', direccion: 'Av. San Martin 2450, CABA' },
+  { nombre: 'Pedro Almanza', direccion: 'Av. Rivadavia 11876, CABA' },
   { nombre: 'Carlos Benitez', direccion: 'Jeronimo Salguero 1432, CABA' },
-  { nombre: 'Pastas La Nonna', direccion: 'Av. Cabildo 2190, CABA' },
+  { nombre: 'Sofia Villalba', direccion: 'Av. Cabildo 2190, CABA' },
   { nombre: 'Lucia Fernandez', direccion: 'Lavalleja 991, CABA' },
-  { nombre: 'Ferreteria El Tornillo', direccion: 'Nazca 1520, CABA' },
-  { nombre: 'Distribuidora Los Andes', direccion: 'Av. Directorio 3210, CABA' },
+  { nombre: 'Matias Romero', direccion: 'Nazca 1520, CABA' },
+  { nombre: 'Gabriel Torres', direccion: 'Av. Directorio 3210, CABA' },
   { nombre: 'Mariana Quiroga', direccion: 'Paraguay 3950, CABA' },
-  { nombre: 'Optica Vision Norte', direccion: 'Av. Triunvirato 4375, CABA' },
+  { nombre: 'Nicolas Farina', direccion: 'Av. Triunvirato 4375, CABA' },
   { nombre: 'Diego Alvarez', direccion: 'Terrada 1684, CABA' },
-  { nombre: 'Pet Shop Huellitas', direccion: 'Av. Segurola 980, CABA' },
-  { nombre: 'Panaderia Del Parque', direccion: 'Cuenca 2780, CABA' },
+  { nombre: 'Camila Aguirre', direccion: 'Av. Segurola 980, CABA' },
+  { nombre: 'Rafael Paredes', direccion: 'Cuenca 2780, CABA' },
   { nombre: 'Rocio Acosta', direccion: 'Bonorino 2240, CABA' },
-  { nombre: 'Heladeria Frio Sur', direccion: 'Av. Mosconi 2897, CABA' },
-  { nombre: 'Muebleria Roble', direccion: 'Av. Warnes 2145, CABA' },
-  { nombre: 'Tienda Urbana 24', direccion: 'Thames 1711, CABA' },
+  { nombre: 'Paula Medina', direccion: 'Av. Mosconi 2897, CABA' },
+  { nombre: 'Tomas Villagra', direccion: 'Av. Warnes 2145, CABA' },
+  { nombre: 'Brenda Salazar', direccion: 'Thames 1711, CABA' },
   { nombre: 'Agustin Sosa', direccion: 'Conde 3055, CABA' },
-  { nombre: 'Electronica Delta', direccion: 'Av. Cordoba 5221, CABA' },
+  { nombre: 'Gonzalo Peralta', direccion: 'Av. Cordoba 5221, CABA' },
   { nombre: 'Florencia Mendez', direccion: 'Sarmiento 4076, CABA' },
-  { nombre: 'Kiosco Las Flores', direccion: 'Av. Avellaneda 1985, CABA' },
-  { nombre: 'Repuestos El Puente', direccion: 'Av. Saenz 924, CABA' },
-  { nombre: 'Gimnasio Activa', direccion: 'Lope de Vega 1320, CABA' },
+  { nombre: 'Daniela Ferreyra', direccion: 'Av. Avellaneda 1985, CABA' },
+  { nombre: 'Mateo Almada', direccion: 'Av. Saenz 924, CABA' },
+  { nombre: 'Julieta Romano', direccion: 'Lope de Vega 1320, CABA' },
   { nombre: 'Sabrina Lopez', direccion: 'Monroe 2247, CABA' },
-  { nombre: 'Almacen Don Bosco', direccion: 'Estados Unidos 3321, CABA' },
-  { nombre: 'Clinica Dental Norte', direccion: 'Av. Libertador 6702, CABA' },
+  { nombre: 'Franco Molina', direccion: 'Estados Unidos 3321, CABA' },
+  { nombre: 'Romina Cardozo', direccion: 'Av. Libertador 6702, CABA' },
   { nombre: 'Javier Pereyra', direccion: 'Moldes 1744, CABA' },
-  { nombre: 'Textil Plaza Once', direccion: 'Pueyrredon 442, CABA' },
-  { nombre: 'Bicicleteria Rueda Libre', direccion: 'Honorio Pueyrredon 2103, CABA' },
+  { nombre: 'Leandro Barrera', direccion: 'Pueyrredon 442, CABA' },
+  { nombre: 'Natalia Cabrera', direccion: 'Honorio Pueyrredon 2103, CABA' },
   { nombre: 'Noelia Rivas', direccion: 'Gavilan 1365, CABA' },
-  { nombre: 'Veterinaria Central', direccion: 'Av. Juan B. Justo 5580, CABA' },
-  { nombre: 'Merceria El Boton', direccion: 'Yerbal 2639, CABA' },
+  { nombre: 'Valeria Mendoza', direccion: 'Av. Juan B. Justo 5580, CABA' },
+  { nombre: 'Sebastian Prieto', direccion: 'Yerbal 2639, CABA' },
   { nombre: 'Santiago Dominguez', direccion: 'Lascano 3142, CABA' },
-  { nombre: 'Corralon del Oeste', direccion: 'Av. Nazca 4122, CABA' },
-  { nombre: 'Cafe Barrio Sur', direccion: 'Bolivar 1268, CABA' },
+  { nombre: 'Carolina Duarte', direccion: 'Av. Nazca 4122, CABA' },
+  { nombre: 'Marcos Gimenez', direccion: 'Bolivar 1268, CABA' },
   { nombre: 'Ines Cabrera', direccion: 'Av. Entre Rios 1855, CABA' }
 ];
 
@@ -254,6 +314,8 @@ async function sembrarUsuarios() {
 
   const usuariosSemilla = [...supervisores, ...operadores, ...clientes];
 
+  usuariosSemilla.forEach(validarUsuarioSemilla);
+
   await client.execute('DELETE FROM sesiones');
   await client.execute('DELETE FROM historial_estados');
   await client.execute('DELETE FROM historial_envios');
@@ -292,6 +354,7 @@ async function sembrarUsuarios() {
 
   // Construir y sembrar envíos (solo usando clientes)
   const enviolsSemilla = construirEnvios(cantidadEnvios, clientes);
+  enviolsSemilla.forEach(validarEnvioSemilla);
   let enviosInsertados = 0;
 
   for (const envio of enviolsSemilla) {
