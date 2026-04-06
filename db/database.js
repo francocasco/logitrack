@@ -299,7 +299,7 @@ async function crearEnvio(
   return trackingId;
 }
 
-async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = null, telefono = null) {
+async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = null, telefono = null, email = null) {
   const offset = (pagina - 1) * porPagina;
 
   let whereClause = "";
@@ -307,20 +307,36 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = nul
   let argsCount = [];
 
   if (rol === "Cliente") {
-    if (!telefono) {
+    const filtrosCliente = [];
+    const argsCliente = [];
+
+    if (telefono) {
+      filtrosCliente.push("contactoDestinatario = ? OR contactoRemitente = ?");
+      argsCliente.push(telefono, telefono);
+    }
+
+    if (email) {
+      filtrosCliente.push("contactoDestinatario = ? OR contactoRemitente = ?");
+      argsCliente.push(email, email);
+    }
+
+    if (filtrosCliente.length === 0) {
       return {
         envios: [],
         paginacion: { total: 0, pagina, porPagina, totalPaginas: 0 }
       };
     }
+
+    const filtroClienteSql = `(${filtrosCliente.map((filtro) => `(${filtro})`).join(" OR ")})`;
+
     if (estado) {
-      whereClause = "WHERE estado = ? AND (contactoDestinatario = ? OR contactoRemitente = ?)";
-      args = [estado, telefono, telefono, porPagina, offset];
-      argsCount = [estado, telefono, telefono];
+      whereClause = `WHERE estado = ? AND ${filtroClienteSql}`;
+      args = [estado, ...argsCliente, porPagina, offset];
+      argsCount = [estado, ...argsCliente];
     } else {
-      whereClause = "WHERE (contactoDestinatario = ? OR contactoRemitente = ?)";
-      args = [telefono, telefono, porPagina, offset];
-      argsCount = [telefono, telefono];
+      whereClause = `WHERE ${filtroClienteSql}`;
+      args = [...argsCliente, porPagina, offset];
+      argsCount = [...argsCliente];
     }
   } else {
     whereClause = estado ? "WHERE estado = ?" : "";
