@@ -4,6 +4,9 @@
   const REGEX_PASSWORD = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
   const REGEX_SOLO_LETRAS = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
   const REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS = /[a-zA-ZáéíóúÁÉÍÓÚñÑ]{5,}/;
+  const REGEX_NOMBRE_PERSONA = /^[A-Za-zÁÉÍÓÚáéíóúÑñ]{3,}(?:\s+[A-Za-zÁÉÍÓÚáéíóúÑñ]{3,})+$/;
+  const REGEX_DIRECCION = /^(?=(?:.*[A-Za-zÁÉÍÓÚáéíóúÑñ]){3,})(?=.*\s)(?=.*\d)[A-Za-zÁÉÍÓÚáéíóúÑñ0-9\s.,#-]+$/;
+  const REGEX_PRODUCTO = /^(?=(?:.*[A-Za-zÁÉÍÓÚáéíóúÑñ]){5,})[A-Za-zÁÉÍÓÚáéíóúÑñ0-9\s.,#-]+$/;
   const REGEX_TRACKING_ID = /^[A-Z]{2}-\d{6}$/;
 
   window.LogiTrackValidation = {
@@ -12,6 +15,9 @@
     REGEX_PASSWORD,
     REGEX_SOLO_LETRAS,
     REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS,
+    REGEX_NOMBRE_PERSONA,
+    REGEX_DIRECCION,
+    REGEX_PRODUCTO,
     REGEX_TRACKING_ID,
   };
 })();

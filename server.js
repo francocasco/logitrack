@@ -9,6 +9,9 @@ const {
   REGEX_PASSWORD,
   REGEX_SOLO_LETRAS,
   REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS,
+  REGEX_NOMBRE_PERSONA,
+  REGEX_DIRECCION,
+  REGEX_PRODUCTO,
 } = require("./validation/regex");
 
 //Swagger
@@ -38,6 +41,20 @@ const swaggerSpec = swaggerJsDoc(swaggerOptions);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 const PORT = process.env.PORT || 3000;
+
+function getArtifactsDir() {
+  return process.env.DATASETS_DIR
+    ? path.resolve(process.env.DATASETS_DIR)
+    : path.join(__dirname, "datasets");
+}
+
+function getDatasetPath() {
+  return path.join(getArtifactsDir(), "training_data.csv");
+}
+
+function getModelPath() {
+  return path.join(getArtifactsDir(), "model.json");
+}
 
 // Middleware
 app.use(express.json());
@@ -218,11 +235,6 @@ function requireRoles(...rolesPermitidos) {
  *       409:
  *         description: Email ya registrado
  */
-function tieneMinimoLetras(valor, minimo = 5) {
-  const coincidencias = String(valor || "").match(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g) || [];
-  return coincidencias.length >= minimo;
-}
-
 app.post("/api/auth/register", async (req, res) => {
   const { email, telefono, nombreUsuario, password } = req.body;
 
@@ -524,13 +536,14 @@ app.patch("/api/usuarios/:id/perfil", requireAuth, requireRoles("Operador", "Sup
   }
 
   if (
-    !REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(nombre.trim()) ||
-    !REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(direccion.trim())
+    !REGEX_NOMBRE_PERSONA.test(nombre.trim()) ||
+    !REGEX_DIRECCION.test(direccion.trim())
   ) {
     return res
       .status(400)
       .json({
-        error: "El nombre/negocio y la dirección deben tener al menos 5 letras.",
+        error:
+          "El nombre debe incluir al menos dos palabras de 3 letras mínimo y la dirección debe incluir al menos 3 letras, un espacio y un número.",
       });
   }
 
@@ -596,32 +609,33 @@ app.post("/api/envios", requireAuth, requireRoles("Operador", "Supervisor"), asy
           "Todos los campos son obligatorios: remitente, destinatario y producto.",
       });
   }
-  if (!tieneMinimoLetras(remitente, 5) || !tieneMinimoLetras(destinatario, 5)) {
+  if (!REGEX_NOMBRE_PERSONA.test(remitente.trim()) || !REGEX_NOMBRE_PERSONA.test(destinatario.trim())) {
     return res
       .status(400)
       .json({
-        error: "El remitente y destinatario deben tener al menos 5 letras.",
+        error:
+          "Remitente y destinatario deben incluir al menos dos palabras de 3 letras mínimo.",
       });
   }
-  if (!tieneMinimoLetras(producto, 3)) {
+  if (!REGEX_PRODUCTO.test(producto.trim())) {
     return res
       .status(400)
       .json({
-        error: "El producto debe tener al menos 3 letras.",
+        error: "El producto debe tener al menos 5 letras.",
       });
   }
-  if (direccionRemitente?.trim() && !tieneMinimoLetras(direccionRemitente, 3)) {
+  if (direccionRemitente?.trim() && !REGEX_DIRECCION.test(direccionRemitente.trim())) {
     return res
       .status(400)
       .json({
-        error: "La dirección de remitente debe tener al menos 3 letras.",
+        error: "La dirección de remitente debe incluir al menos 3 letras, un espacio y un número.",
       });
   }
-  if (direccionEntrega?.trim() && !tieneMinimoLetras(direccionEntrega, 3)) {
+  if (direccionEntrega?.trim() && !REGEX_DIRECCION.test(direccionEntrega.trim())) {
     return res
       .status(400)
       .json({
-        error: "La dirección de destinatario debe tener al menos 3 letras.",
+        error: "La dirección de destinatario debe incluir al menos 3 letras, un espacio y un número.",
       });
   }
   if (contactoRemitente?.trim()) {
@@ -754,11 +768,11 @@ app.get("/api/envios/buscar/destinatario", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Ingresá un nombre para buscar." });
   }
 
-  if (!REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(nombre.trim())) {
+  if (!REGEX_NOMBRE_PERSONA.test(nombre.trim())) {
     return res
       .status(400)
       .json({
-        error: "La búsqueda debe incluir al menos un nombre de 5 letras.",
+        error: "La búsqueda debe incluir nombre y apellido con al menos 3 letras cada uno.",
       });
   }
 
@@ -859,6 +873,22 @@ app.patch("/api/envios/:trackingId", requireAuth, async (req, res) => {
       });
   }
 
+  if (!REGEX_NOMBRE_PERSONA.test(destinatario.trim())) {
+    return res
+      .status(400)
+      .json({
+        error: "El destinatario debe incluir al menos dos palabras de 3 letras mínimo.",
+      });
+  }
+
+  if (!REGEX_DIRECCION.test(direccionEntrega.trim())) {
+    return res
+      .status(400)
+      .json({
+        error: "La dirección de entrega debe incluir al menos 3 letras, un espacio y un número.",
+      });
+  }
+
   try {
     const envioActualizado = await db.actualizarEnvio(
       req.params.trackingId.toUpperCase(),
@@ -943,6 +973,36 @@ app.patch("/api/envios/:trackingId/estado", requireAuth, async (req, res) => {
   }
 });
 
+app.patch("/api/envios/:trackingId/cancelar", requireAuth, async (req, res) => {
+  if (!["Operador", "Supervisor"].includes(req.usuario.rol)) {
+    return res
+      .status(403)
+      .json({ error: "No tenés permisos para cancelar el envío." });
+  }
+
+  try {
+    const resultado = await db.cancelarEnvio(
+      req.params.trackingId.toUpperCase(),
+    );
+
+    if (!resultado) {
+      return res.status(404).json({ error: "Envío no encontrado." });
+    }
+
+    if (resultado.error) {
+      return res.status(400).json({ error: resultado.error });
+    }
+
+    res.json({
+      mensaje: 'Envío cancelado correctamente.',
+      ...resultado,
+    });
+  } catch (err) {
+    console.error("Error al cancelar envío:", err.message);
+    res.status(500).json({ error: "No se pudo cancelar el envío." });
+  }
+});
+
 // GET /api/envios/:trackingId/historial
 app.get(
   "/api/envios/:trackingId/historial",
@@ -1020,13 +1080,13 @@ app.post("/api/dataset/estructurar", requireAuth, async (req, res) => {
     }
 
     // Crear carpeta datasets si no existe
-    const datasetsDir = path.join(__dirname, "datasets");
+    const datasetsDir = getArtifactsDir();
     if (!fs.existsSync(datasetsDir)) {
       fs.mkdirSync(datasetsDir, { recursive: true });
     }
 
     // Guardar CSV
-    const csvPath = path.join(datasetsDir, "training_data.csv");
+    const csvPath = getDatasetPath();
     fs.writeFileSync(csvPath, resultado.csvContent, "utf-8");
 
     res.json({
@@ -1058,7 +1118,7 @@ app.post("/api/dataset/estructurar", requireAuth, async (req, res) => {
  *         description: Error al ejecutar el script
  */
 app.post("/api/modelo/entrenar", requireAuth, requireRoles("Supervisor"), async (req, res) => {
-  const csvPath = path.join(__dirname, "datasets", "training_data.csv");
+  const csvPath = getDatasetPath();
 
   if (!fs.existsSync(csvPath)) {
     return res.status(400).json({ error: "No se encontró el dataset. Primero estructurá el dataset." });
@@ -1106,7 +1166,7 @@ app.post("/api/modelo/predecir", requireAuth, requireRoles("Supervisor"), async 
     return res.status(400).json({ error: "Ingresá un Tracking ID para predecir." });
   }
 
-  const modelPath = path.join(__dirname, "datasets", "model.json");
+  const modelPath = getModelPath();
   if (!fs.existsSync(modelPath)) {
     return res.status(400).json({ error: "El modelo no está entrenado. Completá los pasos 1 y 2 primero." });
   }

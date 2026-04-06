@@ -121,6 +121,7 @@ function badgeEstado(estado) {
     "en tránsito": "badge-transito",
     "en sucursal": "badge-sucursal",
     entregado: "badge-entregado",
+    cancelado: "badge-cancelado",
   };
   return `<span class="badge ${clases[estado] || ""}">${estado}</span>`;
 }
@@ -182,6 +183,9 @@ async function actualizarTextosSeccionUsuarios() {
 const {
   REGEX_SOLO_LETRAS,
   REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS,
+  REGEX_NOMBRE_PERSONA,
+  REGEX_DIRECCION,
+  REGEX_PRODUCTO,
   REGEX_EMAIL,
   REGEX_TELEFONO,
   REGEX_TRACKING_ID,
@@ -223,6 +227,28 @@ function validarEmailOTelefono(valor, nombre) {
   return `El campo ${nombre} debe ser un email o un telefono valido.`;
 }
 
+function validarNombrePersona(valor, nombre) {
+  if (!REGEX_NOMBRE_PERSONA.test(valor)) {
+    return `El campo ${nombre} debe incluir al menos dos palabras de 3 letras mínimo.`;
+  }
+  return null;
+}
+
+function validarDireccion(valor, nombre, obligatorio = false) {
+  if (!valor && !obligatorio) return null;
+  if (!REGEX_DIRECCION.test(valor)) {
+    return `El campo ${nombre} debe incluir al menos 3 letras, un espacio y un número.`;
+  }
+  return null;
+}
+
+function validarProducto(valor) {
+  if (!REGEX_PRODUCTO.test(valor)) {
+    return "El producto debe tener al menos 5 letras.";
+  }
+  return null;
+}
+
 // ─── CREAR ENVÍO ──────────────────────────────────────────────
 async function crearEnvio(e) {
   e.preventDefault();
@@ -239,11 +265,11 @@ async function crearEnvio(e) {
   const errRemitente = validarCampo(remitente, "remitente");
   const errDestinatario = validarCampo(destinatario, "destinatario");
   const errProducto = validarCampo(producto, "producto", 2, 200);
-  const errProductoLetras = validarMinimoLetras(producto, "producto", 3);
-  const errRemitenteLetras = validarMinimoLetras(remitente, "remitente", 5);
-  const errDestinatarioLetras = validarMinimoLetras(destinatario, "destinatario", 5);
-  const errDireccionRemitente = validarMinimoLetrasOpcional(direccionRemitente, "direccion de remitente", 3);
-  const errDireccionDestinatario = validarMinimoLetrasOpcional(direccionEntrega, "direccion de destinatario", 3);
+  const errProductoLetras = validarProducto(producto);
+  const errRemitenteLetras = validarNombrePersona(remitente, "remitente");
+  const errDestinatarioLetras = validarNombrePersona(destinatario, "destinatario");
+  const errDireccionRemitente = validarDireccion(direccionRemitente, "direccion de remitente", false);
+  const errDireccionDestinatario = validarDireccion(direccionEntrega, "direccion de destinatario", false);
   const errContactoRemitente = validarEmailOTelefono(contactoRemitente, "contacto remitente");
   const errContactoDestinatario = validarEmailOTelefono(contactoDestinatario, "contacto destinatario");
 
@@ -584,8 +610,8 @@ async function buscarPorDestinatario() {
     return;
   }
 
-  if (!REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(nombre)) {
-    resultDiv.innerHTML = `<div class="alert alert-error show">❌ La búsqueda debe incluir al menos un nombre de 5 letras.</div>`;
+  if (!REGEX_NOMBRE_PERSONA.test(nombre)) {
+    resultDiv.innerHTML = `<div class="alert alert-error show">❌ La búsqueda debe incluir nombre y apellido con al menos 3 letras cada uno.</div>`;
     return;
   }
 
@@ -703,14 +729,16 @@ function renderDetalleEnvio(draft) {
 
   const { envioBase: e, usuarioActual } = draft;
   const idx = ESTADOS_ENVIO.indexOf(draft.estadoActualDraft);
+  const envioCancelado = draft.estadoActualDraft === "cancelado";
   const puedeGestionarEnvio = ["Operador", "Supervisor"].includes(
     usuarioActual.rol,
   );
   const puedeConsultarHistorial = ["Operador", "Supervisor"].includes(
     usuarioActual.rol,
   );
-  const puedeAvanzar = puedeGestionarEnvio && idx < ESTADOS_ENVIO.length - 1;
-  const puedeEditar = puedeGestionarEnvio;
+  const puedeAvanzar =
+    puedeGestionarEnvio && !envioCancelado && idx < ESTADOS_ENVIO.length - 1;
+  const puedeEditar = puedeGestionarEnvio && !envioCancelado;
   const direccionEntrega = draft.direccionEntregaDraft?.trim()
     ? draft.direccionEntregaDraft
     : "Sin especificar";
@@ -853,11 +881,24 @@ function renderDetalleEnvio(draft) {
               ⚡ Avanzar estado
             </button>
           `
-              : idx === ESTADOS_ENVIO.length - 1
+              : envioCancelado
+                ? `
+            <span style="color:var(--red);font-size:13px">⛔ Envío cancelado</span>
+          `
+                : idx === ESTADOS_ENVIO.length - 1
                 ? `
             <span style="color:var(--green);font-size:13px">✅ Entrega completada</span>
           `
                 : ""
+          }
+          ${
+            puedeGestionarEnvio
+              ? `
+            <button class="btn btn-danger" onclick="cancelarEnvio('${e.trackingId}')">
+              🛑 Cancelar envío
+            </button>
+          `
+              : ""
           }
           <button class="btn btn-secondary" onclick="navigate('page-lista')">← Volver a lista</button>
         </div>
@@ -950,11 +991,13 @@ async function guardarCambiosEnvio(trackingId) {
 
   const errDestinatario = validarCampo(destinatario, "destinatario");
   const errDireccion = validarCampo(direccionEntrega, "dirección de entrega");
+  const errDestinatarioFormato = validarNombrePersona(destinatario, "destinatario");
+  const errDireccionFormato = validarDireccion(direccionEntrega, "dirección de entrega", true);
 
-  if (errDestinatario || errDireccion) {
+  if (errDestinatario || errDireccion || errDestinatarioFormato || errDireccionFormato) {
     showAlert(
       "alert-detalle",
-      `❌ ${errDestinatario || errDireccion}`,
+      `❌ ${errDestinatario || errDireccion || errDestinatarioFormato || errDireccionFormato}`,
       "error",
     );
     return;
@@ -998,6 +1041,11 @@ async function guardarCambiosEnvio(trackingId) {
 async function guardarCambiosEstado(trackingId) {
   if (!detalleEnvioDraft || detalleEnvioDraft.trackingId !== trackingId) {
     showAlert("alert-detalle", "❌ No se pudo recuperar el borrador del envío.", "error");
+    return;
+  }
+
+  if (detalleEnvioDraft.estadoActualDraft === "cancelado") {
+    showAlert("alert-detalle", "❌ Un envío cancelado no puede cambiar de estado.", "error");
     return;
   }
 
@@ -1048,6 +1096,11 @@ async function avanzarEstado(trackingId) {
   sincronizarDetalleEnvioDraft();
 
   const idxActual = ESTADOS_ENVIO.indexOf(detalleEnvioDraft.estadoActualDraft);
+  if (detalleEnvioDraft.estadoActualDraft === "cancelado") {
+    showAlert("alert-detalle", "❌ Un envío cancelado no puede avanzar de estado.", "error");
+    return;
+  }
+
   if (idxActual === ESTADOS_ENVIO.length - 1) {
     showAlert("alert-detalle", "❌ El envío ya fue entregado, no puede avanzar más.", "error");
     return;
@@ -1062,6 +1115,31 @@ async function avanzarEstado(trackingId) {
     `ℹ️ Cambio de estado preparado. Guardalo con "Guardar cambios de estado".`,
     "info",
   );
+}
+
+async function cancelarEnvio(trackingId) {
+  if (!detalleEnvioDraft || detalleEnvioDraft.trackingId !== trackingId) {
+    showAlert("alert-detalle", "❌ No se pudo cancelar el envío.", "error");
+    return;
+  }
+
+  try {
+    const res = await fetchAuth(`/api/envios/${trackingId}/cancelar`, {
+      method: "PATCH",
+    });
+    const data = await res.json();
+
+    if (res.status === 401) {
+      window.location.href = "/login.html";
+      return;
+    }
+    if (!res.ok) throw new Error(data.error);
+
+    await verDetalle(trackingId);
+    showAlert("alert-detalle", "✅ Envío cancelado correctamente.", "success");
+  } catch (err) {
+    showAlert("alert-detalle", `❌ ${err.message}`, "error");
+  }
 }
 
 // ─── SETUP DE CLIENTE ─────────────────────────────────────────
@@ -1131,12 +1209,8 @@ async function guardarSetupCliente() {
 
   const errNombre = validarCampo(nombre, "nombre/negocio");
   const errDireccion = validarCampo(direccion, "dirección");
-  const errNombreLetras = !REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(nombre)
-    ? "El nombre/negocio debe tener al menos 5 letras."
-    : null;
-  const errDireccionLetras = !REGEX_BUSQUEDA_DESTINATARIO_MIN_5_LETRAS.test(direccion)
-    ? "La dirección debe tener al menos 5 letras."
-    : null;
+  const errNombreLetras = validarNombrePersona(nombre, "nombre/negocio");
+  const errDireccionLetras = validarDireccion(direccion, "dirección", true);
 
   if (errNombre || errDireccion || errNombreLetras || errDireccionLetras) {
     showAlert(
