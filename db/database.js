@@ -299,7 +299,7 @@ async function crearEnvio(
   return trackingId;
 }
 
-async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = null, nombre = null, direccion = null) {
+async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = null, telefono = null) {
   const offset = (pagina - 1) * porPagina;
 
   let whereClause = "";
@@ -307,20 +307,20 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = nul
   let argsCount = [];
 
   if (rol === "Cliente") {
-    if (!nombre && !direccion) {
+    if (!telefono) {
       return {
         envios: [],
         paginacion: { total: 0, pagina, porPagina, totalPaginas: 0 }
       };
     }
     if (estado) {
-      whereClause = "WHERE estado = ? AND (contactoDestinatario LIKE ? OR contactoRemitente LIKE ?)";
-      args = [estado, `%${nombre}%`, `%${nombre}%`, porPagina, offset];
-      argsCount = [estado, `%${nombre}%`, `%${nombre}%`];
+      whereClause = "WHERE estado = ? AND (contactoDestinatario = ? OR contactoRemitente = ?)";
+      args = [estado, telefono, telefono, porPagina, offset];
+      argsCount = [estado, telefono, telefono];
     } else {
-      whereClause = "WHERE (contactoDestinatario LIKE ? OR contactoRemitente LIKE ?)";
-      args = [`%${nombre}%`, `%${nombre}%`, porPagina, offset];
-      argsCount = [`%${nombre}%`, `%${nombre}%`];
+      whereClause = "WHERE (contactoDestinatario = ? OR contactoRemitente = ?)";
+      args = [telefono, telefono, porPagina, offset];
+      argsCount = [telefono, telefono];
     }
   } else {
     whereClause = estado ? "WHERE estado = ?" : "";
@@ -342,12 +342,7 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = nul
 
   return {
     envios: resEnvios.rows,
-    paginacion: {
-      total,
-      pagina,
-      porPagina,
-      totalPaginas: Math.ceil(total / porPagina),
-    },
+    paginacion: { total, pagina, porPagina, totalPaginas: Math.ceil(total / porPagina) },
   };
 }
 
