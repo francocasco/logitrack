@@ -308,7 +308,6 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = nul
 
   if (rol === "Cliente") {
     if (!nombre && !direccion) {
-      // Cliente sin datos de contacto: no mostrar nada
       return {
         envios: [],
         paginacion: { total: 0, pagina, porPagina, totalPaginas: 0 }
@@ -328,6 +327,28 @@ async function listarEnvios(pagina = 1, porPagina = 10, estado = null, rol = nul
     args = estado ? [estado, porPagina, offset] : [porPagina, offset];
     argsCount = estado ? [estado] : [];
   }
+
+  const resEnvios = await db.execute({
+    sql: `SELECT * FROM envios ${whereClause} ORDER BY fechaCreacion DESC LIMIT ? OFFSET ?`,
+    args,
+  });
+
+  const resTotal = await db.execute({
+    sql: `SELECT COUNT(*) as total FROM envios ${whereClause}`,
+    args: argsCount,
+  });
+
+  const total = Number(resTotal.rows[0].total);
+
+  return {
+    envios: resEnvios.rows,
+    paginacion: {
+      total,
+      pagina,
+      porPagina,
+      totalPaginas: Math.ceil(total / porPagina),
+    },
+  };
 }
 
 function normalizarCampo(valor) {
