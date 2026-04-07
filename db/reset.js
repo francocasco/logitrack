@@ -46,11 +46,14 @@ async function resetearBase() {
   `);
 
   await client.execute('DELETE FROM sesiones');
+  await client.execute('DELETE FROM historial_estados');
+  await client.execute('DELETE FROM historial_envios');
+  await client.execute('DELETE FROM log_estructuracion');
   await client.execute('DELETE FROM envios');
   await client.execute('DELETE FROM usuarios');
 
   try {
-    await client.execute("DELETE FROM sqlite_sequence WHERE name IN ('sesiones', 'envios', 'usuarios')");
+    await client.execute("DELETE FROM sqlite_sequence WHERE name IN ('sesiones', 'historial_estados', 'historial_envios', 'log_estructuracion', 'envios', 'usuarios')");
   } catch (error) {
     console.warn('ℹ️ No se pudo reiniciar sqlite_sequence:', error.message);
   }

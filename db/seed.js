@@ -1,129 +1,452 @@
 require('dotenv').config();
 const { createClient } = require('@libsql/client');
+const bcrypt = require('bcryptjs');
 const { inicializar } = require('./database');
+const {
+  REGEX_EMAIL,
+  REGEX_TELEFONO,
+  REGEX_PASSWORD,
+  REGEX_NOMBRE_PERSONA,
+  REGEX_DIRECCION,
+  REGEX_PRODUCTO,
+} = require('../validation/regex');
 
 const client = createClient({
   url: process.env.TURSO_URL || 'file:./db/database.db',
   authToken: process.env.TURSO_TOKEN || undefined
 });
 
-const estadosDisponibles = ['creado', 'en tránsito', 'en sucursal', 'entregado'];
+const PASSWORD_SEMILLA = 'SeedPass123';
+const HASH_ROUNDS = 10;
 
-const enviosBase = [
-  {
-    trackingId: 'LT-100001',
-    remitente: 'Juan Pérez',
-    destinatario: 'María López',
-    producto: 'Notebook Lenovo',
-    estado: 'creado'
-  },
-  {
-    trackingId: 'LT-100002',
-    remitente: 'Ana Gómez',
-    destinatario: 'Carlos Ruiz',
-    producto: 'Auriculares Bluetooth',
-    estado: 'en tránsito'
-  },
-  {
-    trackingId: 'LT-100003',
-    remitente: 'Sofía Martínez',
-    destinatario: 'Luciano Díaz',
-    producto: 'Teclado mecánico',
-    estado: 'en sucursal'
-  },
-  {
-    trackingId: 'LT-100004',
-    remitente: 'Pedro Fernández',
-    destinatario: 'Valentina Castro',
-    producto: 'Smartphone Samsung',
-    estado: 'entregado'
-  },
-  {
-    trackingId: 'LT-100005',
-    remitente: 'Micaela Torres',
-    destinatario: 'Tomás Herrera',
-    producto: 'Libro de algoritmos',
-    estado: 'creado'
+const CANTIDADES_BASE = {
+  supervisores: 5,
+  operadores: 10,
+  clientes: 35,
+  envios: 100
+};
+
+const MINIMOS = {
+  supervisores: 3,
+  operadores: 5,
+  clientes: 10
+};
+
+function validarCampoRegex(valor, regex, etiqueta) {
+  if (!regex.test(String(valor || '').trim())) {
+    throw new Error(`Valor inválido en seed para ${etiqueta}: "${valor}"`);
   }
-];
-
-const remitentesExtra = [
-  'Laura Méndez', 'Diego Suárez', 'Camila Navarro', 'Martín Silva', 'Paula Rojas',
-  'Nicolás Vega', 'Florencia Acosta', 'Gabriel Medina', 'Julieta Romero', 'Franco Sosa'
-];
-
-const destinatariosExtra = [
-  'Agustina Paz', 'Emiliano Benítez', 'Milagros Ibarra', 'Ramiro Luna', 'Brenda Molina',
-  'Federico Cabrera', 'Rocío Paredes', 'Iván Quiroga', 'Daniela Peralta', 'Nahuel Campos'
-];
-
-const productosExtra = [
-  'Mouse inalámbrico', 'Monitor 24 pulgadas', 'Impresora multifunción', 'Mochila ejecutiva',
-  'Tablet Samsung', 'Cámara web HD', 'Disco SSD 1TB', 'Parlante portátil',
-  'Silla ergonómica', 'Router Wi-Fi'
-];
-
-const enviosGenerados = Array.from({ length: 45 }, (_, index) => ({
-  trackingId: `LT-${String(100006 + index).padStart(6, '0')}`,
-  remitente: remitentesExtra[index % remitentesExtra.length],
-  destinatario: destinatariosExtra[(index * 2) % destinatariosExtra.length],
-  producto: productosExtra[index % productosExtra.length],
-  estado: estadosDisponibles[index % estadosDisponibles.length]
-}));
-
-const enviosSemilla = [...enviosBase, ...enviosGenerados];
-
-function fechaHaceDias(dias) {
-  return new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString();
 }
 
-async function sembrarEnvios() {
+function validarUsuarioSemilla(usuario) {
+  validarCampoRegex(usuario.email, REGEX_EMAIL, 'usuario.email');
+  validarCampoRegex(usuario.telefono, REGEX_TELEFONO, 'usuario.telefono');
+  validarCampoRegex(PASSWORD_SEMILLA, REGEX_PASSWORD, 'PASSWORD_SEMILLA');
+
+  if (String(usuario.nombreUsuario || '').trim().length < 5) {
+    throw new Error(`Valor inválido en seed para usuario.nombreUsuario: "${usuario.nombreUsuario}"`);
+  }
+
+  if (usuario.nombre) {
+    validarCampoRegex(usuario.nombre, REGEX_NOMBRE_PERSONA, 'usuario.nombre');
+  }
+
+  if (usuario.direccion) {
+    validarCampoRegex(usuario.direccion, REGEX_DIRECCION, 'usuario.direccion');
+  }
+}
+
+function validarEnvioSemilla(envio) {
+  validarCampoRegex(envio.remitente, REGEX_NOMBRE_PERSONA, 'envio.remitente');
+  validarCampoRegex(envio.destinatario, REGEX_NOMBRE_PERSONA, 'envio.destinatario');
+  validarCampoRegex(envio.producto, REGEX_PRODUCTO, 'envio.producto');
+
+  if (envio.direccionRemitente) {
+    validarCampoRegex(envio.direccionRemitente, REGEX_DIRECCION, 'envio.direccionRemitente');
+  }
+
+  if (envio.direccionEntrega) {
+    validarCampoRegex(envio.direccionEntrega, REGEX_DIRECCION, 'envio.direccionEntrega');
+  }
+
+  if (envio.contactoRemitente) {
+    const contacto = String(envio.contactoRemitente).trim();
+    if (!REGEX_EMAIL.test(contacto) && !REGEX_TELEFONO.test(contacto)) {
+      throw new Error(`Valor inválido en seed para envio.contactoRemitente: "${envio.contactoRemitente}"`);
+    }
+  }
+
+  if (envio.contactoDestinatario) {
+    const contacto = String(envio.contactoDestinatario).trim();
+    if (!REGEX_EMAIL.test(contacto) && !REGEX_TELEFONO.test(contacto)) {
+      throw new Error(`Valor inválido en seed para envio.contactoDestinatario: "${envio.contactoDestinatario}"`);
+    }
+  }
+}
+
+function mitadConMinimo(cantidadBase, minimo) {
+  return Math.max(minimo, Math.floor(cantidadBase / 2));
+}
+
+function telefonoUnico(index) {
+  return `+54 11 ${String(70000000 + index).padStart(8, '0')}`;
+}
+
+function construirUsuarios(cantidad, rol, prefijo) {
+  return Array.from({ length: cantidad }, (_, i) => {
+    const numero = i + 1;
+    const sufijo = String(numero).padStart(2, '0');
+    const base = `${prefijo}${sufijo}`;
+
+    return {
+      email: `${base}@logitrack.seed`,
+      telefono: telefonoUnico(i + (rol === 'Supervisor' ? 1 : rol === 'Operador' ? 100 : 1000)),
+      nombreUsuario: base,
+      rol
+    };
+  });
+}
+
+const CLIENTES_PERFILES = [
+  { nombre: 'Martin Suarez', direccion: 'Av. San Martin 2450, CABA' },
+  { nombre: 'Pedro Almanza', direccion: 'Av. Rivadavia 11876, CABA' },
+  { nombre: 'Carlos Benitez', direccion: 'Jeronimo Salguero 1432, CABA' },
+  { nombre: 'Sofia Villalba', direccion: 'Av. Cabildo 2190, CABA' },
+  { nombre: 'Lucia Fernandez', direccion: 'Lavalleja 991, CABA' },
+  { nombre: 'Matias Romero', direccion: 'Nazca 1520, CABA' },
+  { nombre: 'Gabriel Torres', direccion: 'Av. Directorio 3210, CABA' },
+  { nombre: 'Mariana Quiroga', direccion: 'Paraguay 3950, CABA' },
+  { nombre: 'Nicolas Farina', direccion: 'Av. Triunvirato 4375, CABA' },
+  { nombre: 'Diego Alvarez', direccion: 'Terrada 1684, CABA' },
+  { nombre: 'Camila Aguirre', direccion: 'Av. Segurola 980, CABA' },
+  { nombre: 'Rafael Paredes', direccion: 'Cuenca 2780, CABA' },
+  { nombre: 'Rocio Acosta', direccion: 'Bonorino 2240, CABA' },
+  { nombre: 'Paula Medina', direccion: 'Av. Mosconi 2897, CABA' },
+  { nombre: 'Tomas Villagra', direccion: 'Av. Warnes 2145, CABA' },
+  { nombre: 'Brenda Salazar', direccion: 'Thames 1711, CABA' },
+  { nombre: 'Agustin Sosa', direccion: 'Conde 3055, CABA' },
+  { nombre: 'Gonzalo Peralta', direccion: 'Av. Cordoba 5221, CABA' },
+  { nombre: 'Florencia Mendez', direccion: 'Sarmiento 4076, CABA' },
+  { nombre: 'Daniela Ferreyra', direccion: 'Av. Avellaneda 1985, CABA' },
+  { nombre: 'Mateo Almada', direccion: 'Av. Saenz 924, CABA' },
+  { nombre: 'Julieta Romano', direccion: 'Lope de Vega 1320, CABA' },
+  { nombre: 'Sabrina Lopez', direccion: 'Monroe 2247, CABA' },
+  { nombre: 'Franco Molina', direccion: 'Estados Unidos 3321, CABA' },
+  { nombre: 'Romina Cardozo', direccion: 'Av. Libertador 6702, CABA' },
+  { nombre: 'Javier Pereyra', direccion: 'Moldes 1744, CABA' },
+  { nombre: 'Leandro Barrera', direccion: 'Pueyrredon 442, CABA' },
+  { nombre: 'Natalia Cabrera', direccion: 'Honorio Pueyrredon 2103, CABA' },
+  { nombre: 'Noelia Rivas', direccion: 'Gavilan 1365, CABA' },
+  { nombre: 'Valeria Mendoza', direccion: 'Av. Juan B. Justo 5580, CABA' },
+  { nombre: 'Sebastian Prieto', direccion: 'Yerbal 2639, CABA' },
+  { nombre: 'Santiago Dominguez', direccion: 'Lascano 3142, CABA' },
+  { nombre: 'Carolina Duarte', direccion: 'Av. Nazca 4122, CABA' },
+  { nombre: 'Marcos Gimenez', direccion: 'Bolivar 1268, CABA' },
+  { nombre: 'Ines Cabrera', direccion: 'Av. Entre Rios 1855, CABA' }
+];
+
+function construirClientes(cantidad) {
+  if (cantidad > CLIENTES_PERFILES.length) {
+    throw new Error(`No hay suficientes perfiles unicos para ${cantidad} clientes.`);
+  }
+
+  return Array.from({ length: cantidad }, (_, i) => {
+    const sufijo = String(i + 1).padStart(2, '0');
+    const base = `cliente${sufijo}`;
+    const perfil = CLIENTES_PERFILES[i];
+
+    return {
+      email: `${base}@logitrack.seed`,
+      telefono: telefonoUnico(2000 + i),
+      nombreUsuario: base,
+      rol: 'Cliente',
+      nombre: perfil.nombre,
+      direccion: perfil.direccion
+    };
+  });
+}
+
+const PRODUCTOS = [
+  'Medicamentos', 'Libros', 'Alimentos', 'Repuestos', 'Electrodomésticos',
+  'Textiles', 'Hardware', 'Accesorios', 'Productos de Limpieza', 'Material de Construcción',
+  'Piezas de Vehículos', 'Cosméticos', 'Instrumentos', 'Herramientas', 'Paquete Variado'
+];
+
+const ESTADOS = ['creado', 'en tránsito', 'en sucursal', 'entregado'];
+
+function randomEnRango(min, max) {
+  return Math.random() * (max - min) + min;
+}
+
+function construirTimelineRelativo(estadoFinal) {
+  const indiceFinal = ESTADOS.indexOf(estadoFinal);
+  if (indiceFinal < 0) {
+    throw new Error(`Estado final inválido para timeline: ${estadoFinal}`);
+  }
+
+  const ahoraMs = Date.now();
+  const diaMs = 24 * 60 * 60 * 1000;
+
+  // Referencias relativas al día de ejecución del seed con variación:
+  // creado ~7 días, tránsito ~4 días, sucursal ~2 días, entregado ~0-1 día.
+  const diasCreado = randomEnRango(6.0, 8.8);
+  const diasTransito = Math.max(0.2, diasCreado - randomEnRango(2.0, 3.8));
+  const diasSucursal = Math.max(0.1, diasTransito - randomEnRango(1.2, 2.6));
+  const diasEntregado = Math.max(0.0, diasSucursal - randomEnRango(0.4, 1.2));
+
+  const diasPorEstado = {
+    creado: diasCreado,
+    'en tránsito': diasTransito,
+    'en sucursal': diasSucursal,
+    entregado: diasEntregado
+  };
+
+  const timeline = [];
+  for (let i = 0; i <= indiceFinal; i += 1) {
+    const estado = ESTADOS[i];
+    const baseMs = ahoraMs - (diasPorEstado[estado] * diaMs);
+    const jitterMs = randomEnRango(-25, 25) * 60 * 1000; // +-25 min
+
+    timeline.push({
+      estado,
+      fechaCambio: new Date(baseMs + jitterMs).toISOString()
+    });
+  }
+
+  // Asegurar orden cronológico creciente para evitar solapes por jitter.
+  timeline.sort((a, b) => new Date(a.fechaCambio) - new Date(b.fechaCambio));
+
+  return timeline;
+}
+
+function construirHistorialEstados(envio) {
+  if (Array.isArray(envio.historialEstados) && envio.historialEstados.length > 0) {
+    return envio.historialEstados;
+  }
+
+  const indiceFinal = ESTADOS.indexOf(envio.estado);
+  const fechaInicioMs = new Date(envio.fechaCreacion).getTime();
+  const fechaFinMs = new Date(envio.fechaActualizacion).getTime();
+  const duracionMs = Math.max(fechaFinMs - fechaInicioMs, 0);
+
+  if (indiceFinal <= 0) {
+    return [{ estado: 'creado', fechaCambio: envio.fechaCreacion }];
+  }
+
+  const historial = [];
+  const pasoMs = duracionMs > 0
+    ? Math.max(Math.floor(duracionMs / indiceFinal), 60 * 1000)
+    : 60 * 1000;
+
+  for (let i = 0; i <= indiceFinal; i += 1) {
+    const fechaMs = i === indiceFinal
+      ? fechaFinMs
+      : Math.min(fechaInicioMs + (pasoMs * i), fechaFinMs);
+
+    historial.push({
+      estado: ESTADOS[i],
+      fechaCambio: new Date(fechaMs).toISOString()
+    });
+  }
+
+  return historial;
+}
+
+function generarTrackingId(index) {
+  const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const primeras = letras[Math.floor(Math.random() * letras.length)] + 
+                   letras[Math.floor(Math.random() * letras.length)];
+  const numeros = String(index).padStart(6, '0');
+  return `${primeras}-${numeros}`;
+}
+
+function construirEnvios(cantidad, usuarios) {
+  return Array.from({ length: cantidad }, (_, i) => {
+    // Seleccionar remitente y destinatario (pueden ser los mismos usuarios, pero de forma realista)
+    const remitenteIdx = Math.floor(Math.random() * usuarios.length);
+    let destinatarioIdx = Math.floor(Math.random() * usuarios.length);
+    
+    // Si es el mismo índice, cambiar destinatario
+    if (destinatarioIdx === remitenteIdx) {
+      destinatarioIdx = (remitenteIdx + 1) % usuarios.length;
+    }
+
+    const remitente = usuarios[remitenteIdx];
+    const destinatario = usuarios[destinatarioIdx];
+    
+    const producto = PRODUCTOS[Math.floor(Math.random() * PRODUCTOS.length)];
+    const estado = ESTADOS[Math.floor(Math.random() * ESTADOS.length)];
+    const historialEstados = construirTimelineRelativo(estado);
+    const fechaCreacion = historialEstados[0].fechaCambio;
+    const fechaActualizacion = historialEstados[historialEstados.length - 1].fechaCambio;
+
+    return {
+      trackingId: generarTrackingId(i + 1),
+      remitente: remitente.nombre || remitente.nombreUsuario,
+      destinatario: destinatario.nombre || destinatario.nombreUsuario,
+      producto,
+      estado,
+      fechaCreacion,
+      fechaActualizacion,
+      direccionRemitente: remitente.direccion || 'Dirección no especificada',
+      contactoRemitente: remitente.telefono,
+      direccionEntrega: destinatario.direccion || 'Dirección no especificada',
+      contactoDestinatario: destinatario.telefono,
+      historialEstados
+    };
+  });
+}
+
+async function sembrarUsuarios() {
   await inicializar();
 
-  let insertados = 0;
+  const ahora = new Date().toISOString();
+  const passwordHash = bcrypt.hashSync(PASSWORD_SEMILLA, HASH_ROUNDS);
 
-  for (const [index, envio] of enviosSemilla.entries()) {
-    const fechaCreacion = fechaHaceDias(enviosSemilla.length - index + 1);
-    const fechaActualizacion = fechaHaceDias(Math.max(enviosSemilla.length - index - 1, 0));
+  const cantidadSupervisores = mitadConMinimo(CANTIDADES_BASE.supervisores, MINIMOS.supervisores);
+  const cantidadOperadores = mitadConMinimo(CANTIDADES_BASE.operadores, MINIMOS.operadores);
+  const cantidadClientes = mitadConMinimo(CANTIDADES_BASE.clientes, MINIMOS.clientes);
+  const cantidadEnvios = Math.floor(CANTIDADES_BASE.envios / 2);
 
+  const supervisores = construirUsuarios(cantidadSupervisores, 'Supervisor', 'admin');
+  const operadores = construirUsuarios(cantidadOperadores, 'Operador', 'operador');
+  const clientes = construirClientes(cantidadClientes);
+
+  const usuariosSemilla = [...supervisores, ...operadores, ...clientes];
+
+  usuariosSemilla.forEach(validarUsuarioSemilla);
+
+  await client.execute('DELETE FROM sesiones');
+  await client.execute('DELETE FROM historial_estados');
+  await client.execute('DELETE FROM historial_envios');
+  await client.execute('DELETE FROM log_estructuracion');
+  await client.execute('DELETE FROM usuarios');
+  await client.execute('DELETE FROM envios');
+
+  let usuariosInsertados = 0;
+
+  for (const usuario of usuariosSemilla) {
     const resultado = await client.execute({
-      sql: `INSERT OR IGNORE INTO envios (
+      sql: `INSERT INTO usuarios (
+        email,
+        telefono,
+        nombreUsuario,
+        passwordHash,
+        fechaCreacion,
+        rol,
+        nombre,
+        direccion
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        usuario.email,
+        usuario.telefono,
+        usuario.nombreUsuario,
+        passwordHash,
+        ahora,
+        usuario.rol,
+        usuario.nombre || null,
+        usuario.direccion || null
+      ]
+    });
+
+    usuariosInsertados += Number(resultado.rowsAffected || 0);
+  }
+
+  // Construir y sembrar envíos (solo usando clientes)
+  const enviolsSemilla = construirEnvios(cantidadEnvios, clientes);
+  enviolsSemilla.forEach(validarEnvioSemilla);
+  let enviosInsertados = 0;
+
+  for (const envio of enviolsSemilla) {
+    const resultado = await client.execute({
+      sql: `INSERT INTO envios (
         trackingId,
         remitente,
         destinatario,
         producto,
         estado,
         fechaCreacion,
-        fechaActualizacion
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        fechaActualizacion,
+        direccionRemitente,
+        contactoRemitente,
+        direccionEntrega,
+        contactoDestinatario
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         envio.trackingId,
         envio.remitente,
         envio.destinatario,
         envio.producto,
         envio.estado,
-        fechaCreacion,
-        fechaActualizacion
+        envio.fechaCreacion,
+        envio.fechaActualizacion,
+        envio.direccionRemitente,
+        envio.contactoRemitente,
+        envio.direccionEntrega,
+        envio.contactoDestinatario
       ]
     });
 
-    insertados += Number(resultado.rowsAffected || 0);
+    enviosInsertados += Number(resultado.rowsAffected || 0);
+
+    const historialEstados = construirHistorialEstados(envio);
+    for (const entrada of historialEstados) {
+      await client.execute({
+        sql: `INSERT INTO historial_estados (trackingId, estado, fechaCambio)
+              VALUES (?, ?, ?)`,
+        args: [envio.trackingId, entrada.estado, entrada.fechaCambio]
+      });
+    }
+
+    // Si el envío fue entregado, registrar en historial_envios para el dataset de IA
+    if (envio.estado === 'entregado') {
+      await client.execute({
+        sql: `INSERT INTO historial_envios (
+          trackingId, remitente, destinatario, producto,
+          direccionEntrega, estadoFinal, fechaCreacion, fechaEntrega
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          envio.trackingId,
+          envio.remitente,
+          envio.destinatario,
+          envio.producto,
+          envio.direccionEntrega,
+          'entregado',
+          envio.fechaCreacion,
+          envio.fechaActualizacion
+        ]
+      });
+    }
   }
 
-  const total = await client.execute('SELECT COUNT(*) AS total FROM envios');
+  const resumenRoles = await client.execute(`
+    SELECT rol, COUNT(*) AS total
+    FROM usuarios
+    GROUP BY rol
+    ORDER BY rol
+  `);
 
-  console.log(`🌱 Seed ejecutado. Insertados: ${insertados}. Total actual en envios: ${total.rows[0].total}`);
-  console.log(`📦 Registros contemplados por el seed: ${enviosSemilla.length}`);
-  console.table(enviosSemilla.slice(0, 10).map(({ trackingId, remitente, destinatario, estado }) => ({
-    trackingId,
-    remitente,
-    destinatario,
-    estado
-  })));
+  const resumenEstados = await client.execute(`
+    SELECT estado, COUNT(*) AS total
+    FROM envios
+    GROUP BY estado
+    ORDER BY estado
+  `);
+
+  console.log(`\n🌱 SEED EJECUTADO\n`);
+  console.log(`👥 Usuarios insertados: ${usuariosInsertados}`);
+  console.log(`📦 Envios insertados: ${enviosInsertados}`);
+  console.log(`🔐 Password de semilla para todos los usuarios: ${PASSWORD_SEMILLA}`);
+  
+  console.log(`\n📊 Distribución de usuarios por rol:`);
+  console.table(resumenRoles.rows);
+  
+  console.log(`\n📊 Distribución de envios por estado:`);
+  console.table(resumenEstados.rows);
 }
 
-sembrarEnvios()
+sembrarUsuarios()
   .catch((error) => {
-    console.error('❌ Error al ejecutar el seed de envíos:', error);
+    console.error('❌ Error al ejecutar el seed:', error);
     process.exit(1);
   });

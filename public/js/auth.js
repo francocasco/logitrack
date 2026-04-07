@@ -1,7 +1,7 @@
 // ─── GESTIÓN DE SESIÓN ────────────────────────────────────────
 // Este archivo se carga en index.html y protege todas las páginas del sistema.
 
-const TOKEN_KEY = 'logitrack_token';
+const TOKEN_KEY = "logitrack_token";
 
 // Obtener el token guardado
 function getToken() {
@@ -14,22 +14,22 @@ const fetchAuth = (url, options = {}) => {
   return fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options.headers,
-      'Authorization': `Bearer ${token}`
-    }
+      Authorization: `Bearer ${token}`,
+    },
   });
 };
 
 // Cerrar sesión
 async function cerrarSesion() {
   try {
-    await fetchAuth('/api/auth/logout', { method: 'POST' });
+    await fetchAuth("/api/auth/logout", { method: "POST" });
   } catch {
     // Si falla el servidor igual limpiamos el token local
   } finally {
     localStorage.removeItem(TOKEN_KEY);
-    window.location.href = '/login.html';
+    window.location.href = "/login.html";
   }
 }
 
@@ -38,18 +38,18 @@ async function cerrarSesion() {
   const token = getToken();
 
   if (!token) {
-    window.location.href = '/login.html';
+    window.location.href = "/login.html";
     return;
   }
 
   try {
-    const res = await fetch('/api/auth/verificar', {
-      headers: { 'Authorization': `Bearer ${token}` }
+    const res = await fetch("/api/auth/verificar", {
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!res.ok) {
       localStorage.removeItem(TOKEN_KEY);
-      window.location.href = '/login.html';
+      window.location.href = "/login.html";
       return;
     }
 
@@ -57,10 +57,12 @@ async function cerrarSesion() {
     window.usuarioActual = data;
 
     // Mostrar email del usuario en el sidebar
-    const userEl = document.getElementById('usuario-email');
+    const userEl = document.getElementById("usuario-email");
     if (userEl) userEl.textContent = data.email;
 
+    const navIa = document.getElementById("nav-ia");
+    if (navIa) navIa.style.display = "block";
   } catch {
-    window.location.href = '/login.html';
+    window.location.href = "/login.html";
   }
 })();
